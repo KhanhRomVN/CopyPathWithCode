@@ -32,6 +32,10 @@
       {
         "command": "copy-path-with-code.copyPathWithContent",
         "title": "Copy Path and Content"
+      },
+      {
+        "command": "copy-path-with-code.clearClipboard",
+        "title": "Clear Copied Paths and Content"
       }
     ],
     "keybindings": [
@@ -40,6 +44,11 @@
         "key": "ctrl+alt+c",
         "mac": "cmd+alt+c",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "copy-path-with-code.clearClipboard",
+        "key": "ctrl+alt+z",
+        "mac": "cmd+alt+z"
       }
     ]
   },

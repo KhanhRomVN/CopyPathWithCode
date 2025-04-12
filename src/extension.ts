@@ -1,8 +1,17 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+interface CopiedFile {
+    displayPath: string;
+    basePath: string;  // Store base path without line numbers
+    content: string;
+}
+
+let copiedFiles: CopiedFile[] = [];
+
 export function activate(context: vscode.ExtensionContext) {
-    let disposable = vscode.commands.registerCommand('copy-path-with-code.copyPathWithContent', async () => {
+    // Command to copy path with content
+    let copyDisposable = vscode.commands.registerCommand('copy-path-with-code.copyPathWithContent', async () => {
         try {
             // Get the active editor
             const editor = vscode.window.activeTextEditor;
@@ -16,10 +25,12 @@ export function activate(context: vscode.ExtensionContext) {
 
             // Get relative path if possible
             let displayPath = filePath;
+            let basePath = filePath;
             if (vscode.workspace.workspaceFolders) {
                 const workspaceFolder = vscode.workspace.workspaceFolders[0];
                 if (workspaceFolder) {
                     displayPath = path.relative(workspaceFolder.uri.fsPath, filePath);
+                    basePath = displayPath;
                 }
             }
 
@@ -32,49 +43,31 @@ export function activate(context: vscode.ExtensionContext) {
                 // Add line numbers to the selection
                 const startLine = selection.start.line + 1;
                 const endLine = selection.end.line + 1;
-                displayPath += `:${startLine}-${endLine}`;
+                displayPath = `${displayPath}:${startLine}-${endLine}`;
             } else {
                 // If no selection, get entire file
                 content = document.getText();
             }
 
-            // Method 1: Try direct clipboard write
-            try {
-                const textToCopy = `${displayPath}\n\n${content}`;
-                await vscode.env.clipboard.writeText(textToCopy);
-                vscode.window.showInformationMessage(`Copied: ${displayPath}`);
-                return;
-            } catch (e) {
-                console.log('Direct clipboard write failed, trying alternative method');
-            }
+            // Remove any existing entries from the same file
+            copiedFiles = copiedFiles.filter(file => file.basePath !== basePath);
 
-            // Method 2: Try through selection
-            try {
-                // Remember current selection and view
-                const currentSelection = editor.selection;
-                const currentVisible = editor.visibleRanges[0];
+            // Add new entry
+            copiedFiles.push({ displayPath, basePath, content });
 
-                if (!selection.isEmpty) {
-                    // If there's already a selection, just copy it
-                    await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
-                } else {
-                    // If no selection, select and copy entire file
-                    const lastLine = document.lineCount - 1;
-                    const lastChar = document.lineAt(lastLine).text.length;
-                    editor.selection = new vscode.Selection(0, 0, lastLine, lastChar);
-                    await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
-                    // Restore selection
-                    editor.selection = currentSelection;
-                }
+            // Combine all copied files
+            const combinedContent = copiedFiles
+                .map(file => `${file.displayPath}\n\n${file.content}`)
+                .join('\n\n---\n\n');
 
-                // Restore view
-                editor.revealRange(currentVisible);
-                vscode.window.showInformationMessage(`Copied: ${displayPath}`);
-                return;
-            } catch (e) {
-                console.log('Selection method failed');
-                throw e;
-            }
+            // Copy to clipboard
+            await vscode.env.clipboard.writeText(combinedContent);
+            
+            // Show notification with count
+            const fileCount = copiedFiles.length;
+            vscode.window.showInformationMessage(
+                `Copied ${fileCount} file${fileCount > 1 ? 's' : ''} to clipboard`
+            );
 
         } catch (error: any) {
             const message = error.message || 'Unknown error';
@@ -83,7 +76,22 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    context.subscriptions.push(disposable);
+    // Command to clear clipboard
+    let clearDisposable = vscode.commands.registerCommand('copy-path-with-code.clearClipboard', async () => {
+        try {
+            copiedFiles = [];
+            await vscode.env.clipboard.writeText('');
+            vscode.window.showInformationMessage('Clipboard cleared');
+        } catch (error: any) {
+            const message = error.message || 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to clear clipboard: ${message}`);
+            console.error('Error:', error);
+        }
+    });
+
+    context.subscriptions.push(copyDisposable, clearDisposable);
 }
 
-export function deactivate() {}
+export function deactivate() {
+    copiedFiles = [];
+}
