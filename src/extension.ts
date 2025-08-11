@@ -11,7 +11,8 @@ export function activate(context: vscode.ExtensionContext) {
     const treeDataProvider = new FolderTreeDataProvider();
     vscode.window.createTreeView('folderManager', { treeDataProvider });
 
-    registerAllCommands(context);
+    // truyền instance của treeDataProvider vào đăng ký command
+    registerAllCommands(context, treeDataProvider);
 
     const editListener = vscode.window.onDidChangeActiveTextEditor(editor => {
         updateActiveFolderStatus();

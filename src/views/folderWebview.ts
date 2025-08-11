@@ -21,7 +21,7 @@ export class FolderWebview {
                 'folderWebview',
                 title,
                 vscode.ViewColumn.One,
-                { enableScripts: true }
+                { enableScripts: true, localResourceRoots: [context.extensionUri] }
             );
 
             this.currentPanel.onDidDispose(() => {
@@ -29,9 +29,12 @@ export class FolderWebview {
             });
         }
 
-        this.currentPanel.webview.html = this.getWebviewContent(title, folder, mode);
+        // Lấy icon theme hiện tại
+        const iconTheme = vscode.workspace.getConfiguration('workbench').get<string>('iconTheme') || '';
 
-        // Lắng nghe message từ webview
+        this.currentPanel.webview.html = this.getWebviewContent(context, title, folder, mode, iconTheme);
+
+        // Nhận message từ webview
         this.currentPanel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'requestFileList') {
                 let files: string[];
@@ -58,9 +61,8 @@ export class FolderWebview {
     private static buildTree(paths: string[]) {
         const root: any = {};
         for (const filePath of paths) {
-            // Chuyển sang path tương đối để đẹp hơn
             const relPath = vscode.workspace.asRelativePath(filePath).replace(/\\/g, '/');
-            const parts = relPath.split('/').filter(Boolean); // bỏ phần rỗng
+            const parts = relPath.split('/').filter(Boolean);
             let current = root;
             for (let i = 0; i < parts.length; i++) {
                 const part = parts[i];
@@ -73,7 +75,17 @@ export class FolderWebview {
         return root;
     }
 
-    private static getWebviewContent(title: string, folder: Folder, mode: 'add' | 'remove'): string {
+    private static getWebviewContent(
+        context: vscode.ExtensionContext,
+        title: string,
+        folder: Folder,
+        mode: 'add' | 'remove',
+        iconTheme: string
+    ): string {
+        const codiconUri = this.currentPanel!.webview.asWebviewUri(
+            vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css')
+        );
+
         return /*html*/`
         <!DOCTYPE html>
         <html lang="en">
@@ -81,65 +93,65 @@ export class FolderWebview {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <title>${title}</title>
+            <link rel="stylesheet" href="${codiconUri}">
             <style>
                 body {
                     font-family: var(--vscode-font-family, Arial);
-                    font-size: var(--vscode-font-size, 13px);
+                    font-size: 14px;
                     background-color: var(--vscode-editor-background, #1e1e1e);
                     color: var(--vscode-editor-foreground, #d4d4d4);
                     margin: 0;
                     padding: 10px;
                 }
                 h1 {
-                    font-size: 16px;
+                    font-size: 17px;
                     margin-bottom: 10px;
                 }
                 ul {
                     list-style: none;
                     margin: 0;
-                    padding-left: 16px;
+                    padding-left: 18px;
                 }
                 .folder, .file {
                     display: flex;
                     align-items: center;
                     cursor: pointer;
-                    padding: 2px 4px;
+                    padding: 4px 6px;
                     border-radius: 3px;
+                    user-select: none;
                 }
                 .folder:hover, .file:hover {
                     background-color: var(--vscode-list-hoverBackground, #2a2d2e);
                 }
-                .selected {
-                    background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
-                    color: var(--vscode-list-activeSelectionForeground, #ffffff);
-                }
                 .icon {
-                    width: 16px;
-                    height: 16px;
-                    margin-right: 5px;
+                    width: 20px;
+                    height: 20px;
+                    margin-right: 6px;
                     flex-shrink: 0;
+                    text-align: center;
                 }
-                .actions {
-                    margin-top: 15px;
+                input[type="checkbox"] {
+                    margin-right: 6px;
+                    cursor: pointer;
                 }
                 button {
-                    background-color: var(--vscode-button-background, #0e639c);
-                    color: var(--vscode-button-foreground, #fff);
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
                     border: none;
                     padding: 5px 10px;
                     margin-right: 5px;
-                    border-radius: 2px;
+                    border-radius: 3px;
                     cursor: pointer;
                 }
                 button:hover {
-                    background-color: var(--vscode-button-hoverBackground, #1177bb);
+                    background-color: var(--vscode-button-hoverBackground);
                 }
             </style>
         </head>
         <body>
             <h1>${title}</h1>
             <div id="file-tree"><p>Loading...</p></div>
-            <div class="actions">
+            <div class="actions" style="margin-top: 15px;">
                 <button id="confirm-btn">Confirm</button>
                 <button id="cancel-btn">Cancel</button>
             </div>
@@ -149,12 +161,40 @@ export class FolderWebview {
                 const fileTreeContainer = document.getElementById('file-tree');
                 const confirmBtn = document.getElementById('confirm-btn');
                 const cancelBtn = document.getElementById('cancel-btn');
+                const usingTheme = "${iconTheme}" !== "";
 
                 vscode.postMessage({ command: 'requestFileList', mode: '${mode}' });
 
-                const folderIconClosed = "📁";
-                const folderIconOpen = "📂";
-                const fileIcon = "📄";
+                const folderIconClosed = usingTheme
+                    ? '<span class="codicon codicon-folder"></span>'
+                    : '📁';
+                const folderIconOpen = usingTheme
+                    ? '<span class="codicon codicon-folder-opened"></span>'
+                    : '📂';
+
+                function getFileIcon(fileName) {
+                    if (usingTheme) {
+                        return '<span class="codicon codicon-file"></span>';
+                    }
+                    const ext = fileName.split('.').pop().toLowerCase();
+                    switch(ext) {
+                        case 'js': return '🟨';
+                        case 'ts': return '🟦';
+                        case 'json': return '📜';
+                        case 'md': return '📝';
+                        case 'html': return '🌐';
+                        case 'css': return '🎨';
+                        case 'png':
+                        case 'jpg':
+                        case 'jpeg':
+                        case 'gif': return '🖼️';
+                        case 'svg': return '✒️';
+                        case 'pdf': return '📕';
+                        case 'zip':
+                        case 'rar': return '📦';
+                        default: return '📄';
+                    }
+                }
 
                 window.addEventListener('message', event => {
                     const message = event.data;
@@ -174,6 +214,7 @@ export class FolderWebview {
                             html += \`
                                 <li>
                                     <div class="folder" data-path="\${fullPath}" data-open="false">
+                                        <input type="checkbox" class="select-box" data-path="\${fullPath}">
                                         <span class="icon">\${folderIconClosed}</span>\${name}
                                     </div>
                                     <div class="children" style="display:none;">\${renderTree(children, fullPath)}</div>
@@ -183,7 +224,8 @@ export class FolderWebview {
                             html += \`
                                 <li>
                                     <div class="file" data-path="\${fullPath}">
-                                        <span class="icon">\${fileIcon}</span>\${name}
+                                        <input type="checkbox" class="select-box" data-path="\${fullPath}">
+                                        <span class="icon">\${getFileIcon(name)}</span>\${name}
                                     </div>
                                 </li>
                             \`;
@@ -196,38 +238,61 @@ export class FolderWebview {
                 function attachEvents() {
                     document.querySelectorAll('.folder').forEach(folderEl => {
                         folderEl.addEventListener('click', e => {
+                            if (e.target.tagName.toLowerCase() === 'input') return;
                             e.stopPropagation();
                             const open = folderEl.getAttribute('data-open') === 'true';
                             folderEl.setAttribute('data-open', String(!open));
-                            folderEl.querySelector('.icon').textContent = open ? folderIconClosed : folderIconOpen;
+                            const iconEl = folderEl.querySelector('.icon');
+                            iconEl.innerHTML = open ? folderIconClosed : folderIconOpen;
                             const childrenDiv = folderEl.nextElementSibling;
                             childrenDiv.style.display = open ? 'none' : 'block';
-                            toggleSelect(folderEl);
                         });
                     });
 
-                    document.querySelectorAll('.file').forEach(fileEl => {
-                        fileEl.addEventListener('click', e => {
-                            e.stopPropagation();
-                            toggleSelect(fileEl);
+                    document.querySelectorAll('.select-box').forEach(box => {
+                        box.addEventListener('change', () => {
+                            handleCheckboxChange(box);
                         });
                     });
                 }
 
-                const selectedPaths = new Set();
-                function toggleSelect(el) {
-                    const path = el.getAttribute('data-path');
-                    if (selectedPaths.has(path)) {
-                        selectedPaths.delete(path);
-                        el.classList.remove('selected');
-                    } else {
-                        selectedPaths.add(path);
-                        el.classList.add('selected');
+                function handleCheckboxChange(box) {
+                    const isChecked = box.checked;
+                    const parentLi = box.closest('li');
+                    if (parentLi) {
+                        parentLi.querySelectorAll('.select-box').forEach(cb => {
+                            cb.checked = isChecked;
+                        });
+                    }
+                    updateParentStates(box);
+                }
+
+                function updateParentStates(box) {
+                    let parentUl = box.closest('ul');
+                    while (parentUl) {
+                        const parentLi = parentUl.closest('li');
+                        if (!parentLi) break;
+                        const parentCheckbox = parentLi.querySelector('> .folder .select-box');
+                        const childCheckboxes = parentLi.querySelectorAll('.children .select-box');
+                        const checkedCount = Array.from(childCheckboxes).filter(cb => cb.checked).length;
+                        if (checkedCount === 0) {
+                            parentCheckbox.checked = false;
+                            parentCheckbox.indeterminate = false;
+                        } else if (checkedCount === childCheckboxes.length) {
+                            parentCheckbox.checked = true;
+                            parentCheckbox.indeterminate = false;
+                        } else {
+                            parentCheckbox.checked = false;
+                            parentCheckbox.indeterminate = true;
+                        }
+                        parentUl = parentLi.closest('ul');
                     }
                 }
 
                 confirmBtn.onclick = () => {
-                    vscode.postMessage({ command: 'confirmSelection', paths: Array.from(selectedPaths) });
+                    const selectedPaths = Array.from(document.querySelectorAll('.select-box:checked'))
+                        .map(cb => cb.getAttribute('data-path'));
+                    vscode.postMessage({ command: 'confirmSelection', paths: selectedPaths });
                 };
 
                 cancelBtn.onclick = () => {

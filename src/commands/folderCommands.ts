@@ -4,30 +4,48 @@ import { saveFolders } from '../utils/folderUtils';
 import { updateActiveFolderStatus, updateTabDecorations } from '../utils/uiUtils';
 import { copyFolderContents } from '../utils/clipboardUtils';
 import { FolderWebview } from '../views/folderWebview';
+import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
+import { getFolderById } from '../utils/folderUtils';
 
-export function registerFolderCommands(context: vscode.ExtensionContext) {
+export function registerFolderCommands(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const commands = [
-        vscode.commands.registerCommand('copy-path-with-code.createFolder', () => createFolder(context)),
+        vscode.commands.registerCommand('copy-path-with-code.createFolder', () => createFolder(context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', () => showAddFileWebview(context)),
         vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', () => showRemoveFileWebview(context)),
         vscode.commands.registerCommand('copy-path-with-code.openFolderFiles', (folder) => openFolderFiles(folder)),
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
-        vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context)),
+        // wrapper để đảm bảo context và treeDataProvider luôn được truyền khi lệnh gọi
+        vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.toggleTracking', (folder) => toggleTracking(folder)),
-        vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context)),
+        vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder))
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
 }
 
-async function createFolder(context: vscode.ExtensionContext) {
+/** Resolve đầu vào có thể là TreeItem (từ TreeView) hoặc Folder (model) -> trả về Folder từ state */
+function resolveFolder(folderOrItem: any): Folder | undefined {
+    if (!folderOrItem) return undefined;
+    // Nếu có id -> tìm trong state theo id
+    if (typeof folderOrItem.id === 'string') {
+        return getFolderById(folderOrItem.id);
+    }
+    // Nếu có name + files có thể là Folder-like object -> so khớp theo name
+    if (typeof folderOrItem.name === 'string') {
+        return state.folders.find(f => f.name === folderOrItem.name);
+    }
+    return undefined;
+}
+
+async function createFolder(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', placeHolder: 'My Code Folder' });
     if (!name) { return; }
     const openFiles = vscode.window.visibleTextEditors.map(e => e.document.uri.toString());
     const folder: Folder = { id: Date.now().toString(), name, files: openFiles };
     state.folders.push(folder);
     saveFolders(context);
+    treeDataProvider.refresh();
     vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files`);
 }
 
@@ -44,6 +62,7 @@ async function showAddFileWebview(context: vscode.ExtensionContext) {
 
     if (folderPick) {
         FolderWebview.show(context, folderPick.folder.id, 'add');
+        // Note: actual adding happens when webview gửi confirm; webview currently chưa post xử lý confirm -> có thể bổ sung để update ngay
     }
 }
 
@@ -63,7 +82,13 @@ async function showRemoveFileWebview(context: vscode.ExtensionContext) {
     }
 }
 
-async function openFolderFiles(folder: Folder) {
+async function openFolderFiles(folderParam: any) {
+    const folder = resolveFolder(folderParam);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
+        return;
+    }
+
     const options = ['Close existing tabs', 'Keep existing tabs'];
     const sel = await vscode.window.showQuickPick(options, { placeHolder: 'Handle existing tabs?' });
     if (!sel) { return; }
@@ -79,7 +104,13 @@ async function openFolderFiles(folder: Folder) {
     vscode.window.showInformationMessage(`Opened ${unique.length} files from "${folder.name}"`);
 }
 
-async function deleteFolder(folder: Folder, context: vscode.ExtensionContext) {
+async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+    const folder = resolveFolder(folderParam);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
+        return;
+    }
+
     const confirm = await vscode.window.showQuickPick(
         ['Cancel', `Delete "${folder.name}"`],
         { placeHolder: `Are you sure you want to delete "${folder.name}"?` }
@@ -91,11 +122,18 @@ async function deleteFolder(folder: Folder, context: vscode.ExtensionContext) {
             updateActiveFolderStatus();
         }
         saveFolders(context);
+        treeDataProvider.refresh();
         vscode.window.showInformationMessage(`Folder "${folder.name}" deleted`);
     }
 }
 
-async function toggleTracking(folder: Folder) {
+async function toggleTracking(folderParam: any) {
+    const folder = resolveFolder(folderParam);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
+        return;
+    }
+
     state.activeFolderId = state.activeFolderId === folder.id ? null : folder.id;
     updateActiveFolderStatus();
 
@@ -105,7 +143,13 @@ async function toggleTracking(folder: Folder) {
     }
 }
 
-async function renameFolder(folder: Folder, context: vscode.ExtensionContext) {
+async function renameFolder(folderParam: any, context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+    const folder = resolveFolder(folderParam);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
+        return;
+    }
+
     const newName = await vscode.window.showInputBox({
         prompt: 'Enter new folder name',
         value: folder.name
@@ -114,12 +158,18 @@ async function renameFolder(folder: Folder, context: vscode.ExtensionContext) {
     if (newName && newName !== folder.name) {
         folder.name = newName;
         saveFolders(context);
+        treeDataProvider.refresh();
         vscode.window.showInformationMessage(`Folder renamed to "${newName}"`);
     }
 }
 
-async function showFolderMenu(folder: Folder) {
-    // Tạo menu nhanh với các lựa chọn
+async function showFolderMenu(folderParam: any) {
+    const folder = resolveFolder(folderParam);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
+        return;
+    }
+
     const selection = await vscode.window.showQuickPick([
         'Add File to Folder',
         'Remove File from Folder',
@@ -133,7 +183,6 @@ async function showFolderMenu(folder: Folder) {
         title: 'Folder Actions'
     });
 
-    // Xử lý lựa chọn
     if (selection) {
         const commandMap: Record<string, string> = {
             'Add File to Folder': 'copy-path-with-code.addFileToFolder',
@@ -145,6 +194,7 @@ async function showFolderMenu(folder: Folder) {
             'Delete Folder': 'copy-path-with-code.deleteFolder'
         };
 
+        // Gọi command và truyền vào Folder (không phải TreeItem)
         await vscode.commands.executeCommand(commandMap[selection], folder);
     }
 }
