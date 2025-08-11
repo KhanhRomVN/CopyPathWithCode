@@ -2,7 +2,7 @@
   "name": "copy-path-with-code",
   "displayName": "Copy Path with Code",
   "description": "Copy file path along with its content",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "publisher": "khanhromvn",
   "license": "MIT",
   "repository": {
@@ -36,6 +36,31 @@
       {
         "command": "copy-path-with-code.clearClipboard",
         "title": "Clear Copied Paths and Content"
+      },
+      {
+        "command": "copy-path-with-code.createFolder",
+        "title": "Create Folder",
+        "icon": "add"
+      },
+      {
+        "command": "copy-path-with-code.addFileToFolder",
+        "title": "Add Current File to Folder"
+      },
+      {
+        "command": "copy-path-with-code.removeFileFromFolder",
+        "title": "Remove Current File from Folder"
+      },
+      {
+        "command": "copy-path-with-code.openFolderFiles",
+        "title": "Open Folder Files"
+      },
+      {
+        "command": "copy-path-with-code.copyFolderContents",
+        "title": "Copy Folder Contents"
+      },
+      {
+        "command": "copy-path-with-code.deleteFolder",
+        "title": "Delete Folder"
       }
     ],
     "keybindings": [
@@ -49,8 +74,84 @@
         "command": "copy-path-with-code.clearClipboard",
         "key": "ctrl+alt+z",
         "mac": "cmd+alt+z"
+      },
+      {
+        "command": "copy-path-with-code.addFileToFolder",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a"
+      },
+      {
+        "command": "copy-path-with-code.removeFileFromFolder",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "copy-path-with-code-folders",
+          "title": "Code Folders",
+          "icon": "folder"
+        }
+      ]
+    },
+    "views": {
+      "copy-path-with-code-folders": [
+        {
+          "id": "folderManager",
+          "name": "Code Folders",
+          "contextualTitle": "Code Folders"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "copy-path-with-code.createFolder",
+          "when": "view == folderManager",
+          "group": "inline",
+          "icon": "plus"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "copy-path-with-code.addFileToFolder",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline",
+          "icon": "add"
+        },
+        {
+          "command": "copy-path-with-code.removeFileFromFolder",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline",
+          "icon": "remove"
+        },
+        {
+          "command": "copy-path-with-code.openFolderFiles",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline",
+          "icon": "folder-opened"
+        },
+        {
+          "command": "copy-path-with-code.toggleTracking",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline",
+          "icon": "eye"
+        },
+        {
+          "command": "copy-path-with-code.renameFolder",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline",
+          "icon": "pencil"
+        },
+        {
+          "command": "copy-path-with-code.deleteFolder",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline",
+          "icon": "trash"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -78,3 +179,4 @@
     "@vscode/test-electron": "^2.4.1"
   }
 }
+

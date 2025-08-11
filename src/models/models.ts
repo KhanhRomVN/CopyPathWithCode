@@ -1,0 +1,21 @@
+import * as vscode from 'vscode';
+
+export interface CopiedFile {
+    displayPath: string;
+    basePath: string;
+    content: string;
+}
+
+export interface Folder {
+    id: string;
+    name: string;
+    files: string[]; // Array of file URIs
+    color?: string;  // Tab highlight color
+}
+
+// State object
+export const state = {
+    copiedFiles: [] as CopiedFile[],
+    folders: [] as Folder[],
+    activeFolderId: null as string | null
+};
