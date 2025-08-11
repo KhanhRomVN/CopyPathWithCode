@@ -30,6 +30,23 @@ export class FolderWebview {
         }
 
         this.currentPanel.webview.html = this.getWebviewContent(title, folder, mode);
+        // Handle messages from the webview for initial file list requests
+        this.currentPanel.webview.onDidReceiveMessage(async message => {
+            if (message.command === 'requestFileList') {
+                let files: { path: string }[];
+                if (mode === 'add') {
+                    const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
+                    const existing = new Set(folder.files);
+                    files = allUris
+                        .map(uri => uri.fsPath)
+                        .filter(fsPath => !existing.has(vscode.Uri.file(fsPath).toString()))
+                        .map(p => ({ path: p }));
+                } else {
+                    files = folder.files.map(fs => ({ path: vscode.Uri.parse(fs).fsPath }));
+                }
+                this.currentPanel?.webview.postMessage({ command: 'updateFileList', files });
+            }
+        });
     }
 
     private static getWebviewContent(title: string, folder: Folder, mode: 'add' | 'remove'): string {
@@ -69,7 +86,7 @@ export class FolderWebview {
             <h1>${title}</h1>
             <div id="file-tree">
                 <!-- File list will be populated by JavaScript -->
-                <p>Loading files...</p>
+                <p>.....</p>
             </div>
             <div class="actions">
                 <button id="confirm-btn">Confirm</button>

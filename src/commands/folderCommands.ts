@@ -14,7 +14,8 @@ export function registerFolderCommands(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
         vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context)),
         vscode.commands.registerCommand('copy-path-with-code.toggleTracking', (folder) => toggleTracking(folder)),
-        vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context))
+        vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context)),
+        vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder))
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
@@ -114,5 +115,23 @@ async function renameFolder(folder: Folder, context: vscode.ExtensionContext) {
         folder.name = newName;
         saveFolders(context);
         vscode.window.showInformationMessage(`Folder renamed to "${newName}"`);
+    }
+}
+async function showFolderMenu(folder: Folder) {
+    const picks: { label: string; command: string }[] = [
+        { label: 'Add File to Folder', command: 'copy-path-with-code.addFileToFolder' },
+        { label: 'Remove File from Folder', command: 'copy-path-with-code.removeFileFromFolder' },
+        { label: 'Open Folder Files', command: 'copy-path-with-code.openFolderFiles' },
+        { label: 'Copy Folder Contents', command: 'copy-path-with-code.copyFolderContents' },
+        { label: 'Toggle Tracking', command: 'copy-path-with-code.toggleTracking' },
+        { label: 'Rename Folder', command: 'copy-path-with-code.renameFolder' },
+        { label: 'Delete Folder', command: 'copy-path-with-code.deleteFolder' }
+    ];
+    const selection = await vscode.window.showQuickPick(picks.map(p => p.label), { placeHolder: `Actions for ${folder.name}` });
+    if (selection) {
+        const pick = picks.find(p => p.label === selection);
+        if (pick) {
+            await vscode.commands.executeCommand(pick.command, folder);
+        }
     }
 }

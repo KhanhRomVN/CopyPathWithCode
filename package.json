@@ -43,6 +43,10 @@
         "icon": "add"
       },
       {
+        "command": "copy-path-with-code.showFolderMenu",
+        "title": "Folder Menu"
+      },
+      {
         "command": "copy-path-with-code.addFileToFolder",
         "title": "Add Current File to Folder"
       },
@@ -111,44 +115,20 @@
           "when": "view == folderManager",
           "group": "inline",
           "icon": "plus"
+        },
+        {
+          "command": "copy-path-with-code.showFolderMenu",
+          "when": "view == folderManager",
+          "group": "inline",
+          "icon": "ellipsis"
         }
       ],
       "view/item/context": [
         {
-          "command": "copy-path-with-code.addFileToFolder",
+          "command": "copy-path-with-code.showFolderMenu",
           "when": "view == folderManager && viewItem == folder",
           "group": "inline",
-          "icon": "add"
-        },
-        {
-          "command": "copy-path-with-code.removeFileFromFolder",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline",
-          "icon": "remove"
-        },
-        {
-          "command": "copy-path-with-code.openFolderFiles",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline",
-          "icon": "folder-opened"
-        },
-        {
-          "command": "copy-path-with-code.toggleTracking",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline",
-          "icon": "eye"
-        },
-        {
-          "command": "copy-path-with-code.renameFolder",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline",
-          "icon": "pencil"
-        },
-        {
-          "command": "copy-path-with-code.deleteFolder",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline",
-          "icon": "trash"
+          "icon": "ellipsis"
         }
       ]
     }
@@ -179,4 +159,3 @@
     "@vscode/test-electron": "^2.4.1"
   }
 }
-

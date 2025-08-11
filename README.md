@@ -24,6 +24,7 @@ A Visual Studio Code extension that allows you to copy both the relative file pa
 3. Select text (optional) or copy entire file
 4. Press `Ctrl+Alt+C` (Windows/Linux) or `Cmd+Alt+C` (Mac)
 5. The file's path and content will be copied to your clipboard in the format:
+
 ```
 path/to/file.ext:1-5 (if text selected)
 
@@ -35,6 +36,7 @@ another/path/to/file.ext
 
 [entire file content]
 ```
+
 6. Press `Ctrl+Alt+Z` to clear all copied content
 
 ## Requirements
@@ -50,6 +52,7 @@ None at this time.
 ### 0.0.1
 
 Initial release:
+
 - Copy file path with content
 - Support for selected text portions
 - Multiple file copying
