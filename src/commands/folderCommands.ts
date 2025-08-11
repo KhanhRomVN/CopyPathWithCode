@@ -117,21 +117,34 @@ async function renameFolder(folder: Folder, context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(`Folder renamed to "${newName}"`);
     }
 }
+
 async function showFolderMenu(folder: Folder) {
-    const picks: { label: string; command: string }[] = [
-        { label: 'Add File to Folder', command: 'copy-path-with-code.addFileToFolder' },
-        { label: 'Remove File from Folder', command: 'copy-path-with-code.removeFileFromFolder' },
-        { label: 'Open Folder Files', command: 'copy-path-with-code.openFolderFiles' },
-        { label: 'Copy Folder Contents', command: 'copy-path-with-code.copyFolderContents' },
-        { label: 'Toggle Tracking', command: 'copy-path-with-code.toggleTracking' },
-        { label: 'Rename Folder', command: 'copy-path-with-code.renameFolder' },
-        { label: 'Delete Folder', command: 'copy-path-with-code.deleteFolder' }
-    ];
-    const selection = await vscode.window.showQuickPick(picks.map(p => p.label), { placeHolder: `Actions for ${folder.name}` });
+    // Tạo menu nhanh với các lựa chọn
+    const selection = await vscode.window.showQuickPick([
+        'Add File to Folder',
+        'Remove File from Folder',
+        'Open Folder Files',
+        'Copy Folder Contents',
+        'Toggle Tracking',
+        'Rename Folder',
+        'Delete Folder'
+    ], {
+        placeHolder: `Select action for "${folder.name}"`,
+        title: 'Folder Actions'
+    });
+
+    // Xử lý lựa chọn
     if (selection) {
-        const pick = picks.find(p => p.label === selection);
-        if (pick) {
-            await vscode.commands.executeCommand(pick.command, folder);
-        }
+        const commandMap: Record<string, string> = {
+            'Add File to Folder': 'copy-path-with-code.addFileToFolder',
+            'Remove File from Folder': 'copy-path-with-code.removeFileFromFolder',
+            'Open Folder Files': 'copy-path-with-code.openFolderFiles',
+            'Copy Folder Contents': 'copy-path-with-code.copyFolderContents',
+            'Toggle Tracking': 'copy-path-with-code.toggleTracking',
+            'Rename Folder': 'copy-path-with-code.renameFolder',
+            'Delete Folder': 'copy-path-with-code.deleteFolder'
+        };
+
+        await vscode.commands.executeCommand(commandMap[selection], folder);
     }
 }

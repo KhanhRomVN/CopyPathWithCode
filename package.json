@@ -29,44 +29,45 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "copy-path-with-code.copyPathWithContent",
-        "title": "Copy Path and Content"
-      },
-      {
-        "command": "copy-path-with-code.clearClipboard",
-        "title": "Clear Copied Paths and Content"
-      },
-      {
-        "command": "copy-path-with-code.createFolder",
-        "title": "Create Folder",
-        "icon": "add"
-      },
-      {
-        "command": "copy-path-with-code.showFolderMenu",
-        "title": "Folder Menu"
-      },
-      {
-        "command": "copy-path-with-code.addFileToFolder",
-        "title": "Add Current File to Folder"
-      },
-      {
-        "command": "copy-path-with-code.removeFileFromFolder",
-        "title": "Remove Current File from Folder"
-      },
-      {
-        "command": "copy-path-with-code.openFolderFiles",
-        "title": "Open Folder Files"
-      },
-      {
-        "command": "copy-path-with-code.copyFolderContents",
-        "title": "Copy Folder Contents"
-      },
-      {
-        "command": "copy-path-with-code.deleteFolder",
-        "title": "Delete Folder"
-      }
-    ],
+  {
+    "command": "copy-path-with-code.copyPathWithContent",
+    "title": "Copy Path and Content"
+  },
+  {
+    "command": "copy-path-with-code.clearClipboard",
+    "title": "Clear Copied Paths and Content"
+  },
+  {
+    "command": "copy-path-with-code.createFolder",
+    "title": "Create Folder",
+    "icon": "add"
+  },
+  {
+    "command": "copy-path-with-code.showFolderMenu",
+    "title": "Folder Menu",
+    "icon": "$(ellipsis)"
+  },
+  {
+    "command": "copy-path-with-code.addFileToFolder",
+    "title": "Add Current File to Folder"
+  },
+  {
+    "command": "copy-path-with-code.removeFileFromFolder",
+    "title": "Remove Current File from Folder"
+  },
+  {
+    "command": "copy-path-with-code.openFolderFiles",
+    "title": "Open Folder Files"
+  },
+  {
+    "command": "copy-path-with-code.copyFolderContents",
+    "title": "Copy Folder Contents"
+  },
+  {
+    "command": "copy-path-with-code.deleteFolder",
+    "title": "Delete Folder"
+  }
+],
     "keybindings": [
       {
         "command": "copy-path-with-code.copyPathWithContent",
@@ -108,30 +109,23 @@
         }
       ]
     },
-    "menus": {
-      "view/title": [
-        {
-          "command": "copy-path-with-code.createFolder",
-          "when": "view == folderManager",
-          "group": "inline",
-          "icon": "plus"
-        },
-        {
-          "command": "copy-path-with-code.showFolderMenu",
-          "when": "view == folderManager",
-          "group": "inline",
-          "icon": "ellipsis"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "copy-path-with-code.showFolderMenu",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline",
-          "icon": "ellipsis"
-        }
-      ]
+"menus": {
+  "view/item/context": [
+    {
+      "command": "copy-path-with-code.showFolderMenu",
+      "when": "view == folderManager && viewItem == folder",
+      "group": "inline"
     }
+  ],
+  "view/title": [
+    {
+      "command": "copy-path-with-code.createFolder",
+      "when": "view == folderManager",
+      "group": "navigation",
+      "icon": "$(add)"
+    }
+  ]
+}
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
