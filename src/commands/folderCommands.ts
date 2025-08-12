@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { state, Folder } from '../models/models';
 import { saveFolders } from '../utils/folderUtils';
-import { updateActiveFolderStatus, updateTabDecorations } from '../utils/uiUtils';
 import { copyFolderContents } from '../utils/clipboardUtils';
 import { FolderWebview } from '../views/folderWebview';
 import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
@@ -16,7 +15,6 @@ export function registerFolderCommands(context: vscode.ExtensionContext, treeDat
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
         // wrapper để đảm bảo context và treeDataProvider luôn được truyền khi lệnh gọi
         vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context, treeDataProvider)),
-        vscode.commands.registerCommand('copy-path-with-code.toggleTracking', (folder) => toggleTracking(folder)),
         vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder))
     ];
@@ -114,8 +112,6 @@ async function openFolderFiles(folderParam: any) {
     for (const uri of unique) {
         await vscode.window.showTextDocument(vscode.Uri.parse(uri), { preview: false });
     }
-    state.activeFolderId = folder.id;
-    updateActiveFolderStatus();
     vscode.window.showInformationMessage(`Opened ${unique.length} files from "${folder.name}"`);
 }
 
@@ -132,31 +128,12 @@ async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, 
     );
     if (confirm === `Delete "${folder.name}"`) {
         state.folders = state.folders.filter(f => f.id !== folder.id);
-        if (state.activeFolderId === folder.id) {
-            state.activeFolderId = null;
-            updateActiveFolderStatus();
-        }
         saveFolders(context);
         treeDataProvider.refresh();
         vscode.window.showInformationMessage(`Folder "${folder.name}" deleted`);
     }
 }
 
-async function toggleTracking(folderParam: any) {
-    const folder = resolveFolder(folderParam);
-    if (!folder) {
-        vscode.window.showErrorMessage('Folder not found');
-        return;
-    }
-
-    state.activeFolderId = state.activeFolderId === folder.id ? null : folder.id;
-    updateActiveFolderStatus();
-
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-        updateTabDecorations(editor);
-    }
-}
 
 async function renameFolder(folderParam: any, context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const folder = resolveFolder(folderParam);
@@ -190,7 +167,6 @@ async function showFolderMenu(folderParam: any) {
         'Remove File from Folder',
         'Open Folder Files',
         'Copy Folder Contents',
-        'Toggle Tracking',
         'Rename Folder',
         'Delete Folder'
     ], {
@@ -204,7 +180,6 @@ async function showFolderMenu(folderParam: any) {
             'Remove File from Folder': 'copy-path-with-code.removeFileFromFolder',
             'Open Folder Files': 'copy-path-with-code.openFolderFiles',
             'Copy Folder Contents': 'copy-path-with-code.copyFolderContents',
-            'Toggle Tracking': 'copy-path-with-code.toggleTracking',
             'Rename Folder': 'copy-path-with-code.renameFolder',
             'Delete Folder': 'copy-path-with-code.deleteFolder'
         };

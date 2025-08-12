@@ -17,5 +17,4 @@ export interface Folder {
 export const state = {
     copiedFiles: [] as CopiedFile[],
     folders: [] as Folder[],
-    activeFolderId: null as string | null
 };
