@@ -26,7 +26,11 @@ export class FolderWebview {
                 'folderWebview',
                 title,
                 vscode.ViewColumn.One,
-                { enableScripts: true, localResourceRoots: [context.extensionUri] }
+                {
+                    enableScripts: true,
+                    localResourceRoots: [context.extensionUri],
+                    retainContextWhenHidden: true
+                }
             );
 
             this.currentPanel.onDidDispose(() => {
@@ -36,8 +40,10 @@ export class FolderWebview {
 
         // Lấy icon theme hiện tại
         const iconTheme = vscode.workspace.getConfiguration('workbench').get<string>('iconTheme') || '';
+        const themeKind = vscode.window.activeColorTheme.kind;
+        const isDarkTheme = themeKind === vscode.ColorThemeKind.Dark || themeKind === vscode.ColorThemeKind.HighContrast;
 
-        this.currentPanel.webview.html = this.getWebviewContent(context, title, folder, mode, iconTheme);
+        this.currentPanel.webview.html = this.getWebviewContent(context, title, folder, mode, iconTheme, isDarkTheme);
 
         // Nhận message từ webview
         this.currentPanel.webview.onDidReceiveMessage(async message => {
@@ -96,7 +102,6 @@ export class FolderWebview {
                 this.currentPanel?.dispose();
             }
         });
-
     }
 
     /** Build cây thư mục từ danh sách file path */
@@ -122,7 +127,8 @@ export class FolderWebview {
         title: string,
         folder: Folder,
         mode: 'add' | 'remove',
-        iconTheme: string
+        iconTheme: string,
+        isDarkTheme: boolean
     ): string {
         const codiconUri = this.currentPanel!.webview.asWebviewUri(
             vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css')
@@ -137,65 +143,301 @@ export class FolderWebview {
             <title>${title}</title>
             <link rel="stylesheet" href="${codiconUri}">
             <style>
+                :root {
+                    --vscode-button-height: 28px;
+                    --vscode-input-height: 26px;
+                    --vscode-border-radius: 4px;
+                    --vscode-border-width: 1px;
+                    --vscode-border: rgba(255,255,255,0.12);
+                    --vscode-focusBorder: #0078d4;
+                }
+                
                 body {
-                    font-family: var(--vscode-font-family, Arial);
-                    font-size: 14px;
+                    font-family: var(--vscode-font-family, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif);
+                    font-size: 13px;
                     background-color: var(--vscode-editor-background, #1e1e1e);
                     color: var(--vscode-editor-foreground, #d4d4d4);
                     margin: 0;
-                    padding: 10px;
+                    padding: 0;
+                    height: 100vh;
+                    display: flex;
+                    flex-direction: column;
                 }
+                
+                .container {
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                    padding: 15px;
+                    box-sizing: border-box;
+                    gap: 12px;
+                }
+                
+                .header {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.2));
+                }
+                
                 h1 {
-                    font-size: 17px;
-                    margin-bottom: 10px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin: 0;
+                    color: var(--vscode-titleBar-activeForeground, #ffffff);
                 }
+                
+                .folder-info {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground, #cccccc);
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                
+                .folder-icon {
+                    color: var(--vscode-icon-foreground, #c5c5c5);
+                }
+                
+                .search-container {
+                    position: relative;
+                    margin-top: 5px;
+                }
+                
+                #search-input {
+                    width: 100%;
+                    padding: 6px 10px 6px 30px;
+                    box-sizing: border-box;
+                    border: var(--vscode-border-width) solid var(--vscode-input-border, rgba(255,255,255,0.1));
+                    background-color: var(--vscode-input-background, #3c3c3c);
+                    color: var(--vscode-input-foreground, #cccccc);
+                    border-radius: var(--vscode-border-radius);
+                    font-size: 13px;
+                    outline: none;
+                    height: var(--vscode-input-height);
+                }
+                
+                #search-input:focus {
+                    border-color: var(--vscode-focusBorder);
+                    outline: 1px solid var(--vscode-focusBorder);
+                }
+                
+                .search-icon {
+                    position: absolute;
+                    left: 10px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: var(--vscode-input-placeholderForeground, #7f7f7f);
+                    pointer-events: none;
+                }
+                
+                .file-tree-container {
+                    flex: 1;
+                    overflow: auto;
+                    border: var(--vscode-border-width) solid var(--vscode-border);
+                    border-radius: var(--vscode-border-radius);
+                    background-color: var(--vscode-sideBar-background, #252526);
+                    position: relative;
+                }
+                
+                #file-tree {
+                    padding: 8px 0;
+                }
+                
+                .tree-placeholder {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    color: var(--vscode-disabledForeground, #6c6c6c);
+                    text-align: center;
+                }
+                
                 ul {
                     list-style: none;
                     margin: 0;
                     padding-left: 18px;
                 }
+                
                 .folder, .file {
                     display: flex;
                     align-items: center;
                     cursor: pointer;
-                    padding: 4px 6px;
+                    padding: 4px 8px;
                     border-radius: 3px;
                     user-select: none;
+                    transition: background-color 0.1s ease;
                 }
+                
                 .folder:hover, .file:hover {
-                    background-color: var(--vscode-list-hoverBackground, #2a2d2e);
+                    background-color: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.08));
                 }
+                
+                .folder:focus, .file:focus {
+                    background-color: var(--vscode-list-focusBackground, rgba(255, 255, 255, 0.1));
+                    outline: 1px solid var(--vscode-focusBorder);
+                }
+                
                 .icon {
                     width: 20px;
                     height: 20px;
                     margin-right: 6px;
                     flex-shrink: 0;
                     text-align: center;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
-                input[type="checkbox"] {
+                
+                .folder-icon {
+                    color: var(--vscode-icon-foreground, #c5c5c5);
+                }
+                
+                .file-icon {
+                    color: var(--vscode-icon-foreground, #c5c5c5);
+                }
+                
+                .checkbox-container {
+                    position: relative;
                     margin-right: 6px;
-                    cursor: pointer;
                 }
+                
+                input[type="checkbox"] {
+                    opacity: 0;
+                    position: absolute;
+                    width: 18px;
+                    height: 18px;
+                    cursor: pointer;
+                    z-index: 1;
+                }
+                
+                .custom-checkbox {
+                    width: 18px;
+                    height: 18px;
+                    border: 1px solid var(--vscode-checkbox-border, rgba(255, 255, 255, 0.4));
+                    border-radius: 3px;
+                    background-color: var(--vscode-checkbox-background, #3c3c3c);
+                    display: inline-block;
+                    position: relative;
+                    margin-right: 4px;
+                }
+                
+                input[type="checkbox"]:checked + .custom-checkbox {
+                    background-color: var(--vscode-checkbox-selectBackground, #0078d4);
+                    border-color: var(--vscode-checkbox-selectBackground, #0078d4);
+                }
+                
+                input[type="checkbox"]:checked + .custom-checkbox::after {
+                    content: '';
+                    position: absolute;
+                    left: 6px;
+                    top: 2px;
+                    width: 5px;
+                    height: 10px;
+                    border: solid white;
+                    border-width: 0 2px 2px 0;
+                    transform: rotate(45deg);
+                }
+                
+                input[type="checkbox"]:indeterminate + .custom-checkbox {
+                    background-color: var(--vscode-checkbox-selectBackground, #0078d4);
+                    border-color: var(--vscode-checkbox-selectBackground, #0078d4);
+                }
+                
+                input[type="checkbox"]:indeterminate + .custom-checkbox::after {
+                    content: '';
+                    position: absolute;
+                    left: 4px;
+                    top: 8px;
+                    width: 10px;
+                    height: 2px;
+                    background-color: white;
+                }
+                
+                .children {
+                    overflow: hidden;
+                }
+                
+                .file-path {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground, #999999);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    flex: 1;
+                }
+                
+                .file-name {
+                    flex: 0 0 auto;
+                }
+                
+                .match-highlight {
+                    background-color: ${isDarkTheme ? 'rgba(255, 255, 0, 0.3)' : 'rgba(255, 204, 0, 0.5)'};
+                    border-radius: 2px;
+                    padding: 0 2px;
+                }
+                
+                .actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 8px;
+                    padding-top: 10px;
+                    border-top: 1px solid var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.2));
+                }
+                
                 button {
+                    height: var(--vscode-button-height);
+                    padding: 0 12px;
+                    border: none;
+                    border-radius: var(--vscode-border-radius);
+                    font-size: 13px;
+                    cursor: pointer;
+                    transition: background-color 0.2s ease;
+                }
+                
+                #confirm-btn {
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
-                    border: none;
-                    padding: 5px 10px;
-                    margin-right: 5px;
-                    border-radius: 3px;
-                    cursor: pointer;
                 }
-                button:hover {
+                
+                #confirm-btn:hover {
                     background-color: var(--vscode-button-hoverBackground);
+                }
+                
+                #cancel-btn {
+                    background-color: transparent;
+                    color: var(--vscode-button-secondaryForeground);
+                    border: 1px solid var(--vscode-button-secondaryBackground);
+                }
+                
+                #cancel-btn:hover {
+                    background-color: var(--vscode-button-secondaryHoverBackground);
                 }
             </style>
         </head>
         <body>
-            <h1>${title}</h1>
-            <div id="file-tree"><p>Loading...</p></div>
-            <div class="actions" style="margin-top: 15px;">
-                <button id="confirm-btn">Confirm</button>
-                <button id="cancel-btn">Cancel</button>
+            <div class="container">
+                <div class="header">
+                    <h1>${title}</h1>
+                    <div class="folder-info">
+                        <span class="codicon codicon-folder folder-icon"></span>
+                        <span>Folder ID: ${folder.id}</span>
+                    </div>
+                    <div class="search-container">
+                        <span class="codicon codicon-search search-icon"></span>
+                        <input id="search-input" type="text" placeholder="Search files..." autocomplete="off">
+                    </div>
+                </div>
+                
+                <div class="file-tree-container">
+                    <div id="file-tree"><p class="tree-placeholder">Loading file structure...</p></div>
+                </div>
+                
+                <div class="actions">
+                    <button id="cancel-btn">Cancel</button>
+                    <button id="confirm-btn">${mode === 'add' ? 'Add Selected' : 'Remove Selected'}</button>
+                </div>
             </div>
 
             <script>
@@ -210,22 +452,25 @@ export class FolderWebview {
         )};
                 const vscode = acquireVsCodeApi();
                 const fileTreeContainer = document.getElementById('file-tree');
+                const searchInput = document.getElementById('search-input');
                 const confirmBtn = document.getElementById('confirm-btn');
                 const cancelBtn = document.getElementById('cancel-btn');
                 const usingTheme = "${iconTheme}" !== "";
+                let currentTreeData = null;
+                let searchTerm = '';
 
                 vscode.postMessage({ command: 'requestFileList', mode: '${mode}' });
 
                 const folderIconClosed = usingTheme
                     ? '<span class="codicon codicon-folder"></span>'
-                    : '📁';
+                    : '<span class="folder-icon">📁</span>';
                 const folderIconOpen = usingTheme
                     ? '<span class="codicon codicon-folder-opened"></span>'
-                    : '📂';
+                    : '<span class="folder-icon">📂</span>';
 
                 function getFileIcon(fileName) {
                     if (usingTheme) {
-                        return '<span class="codicon codicon-file"></span>';
+                        return '<span class="codicon codicon-symbol-file file-icon"></span>';
                     }
                     const ext = fileName.split('.').pop().toLowerCase();
                     switch(ext) {
@@ -250,23 +495,49 @@ export class FolderWebview {
                 window.addEventListener('message', event => {
                     const message = event.data;
                     if (message.command === 'updateFileTree') {
-                        fileTreeContainer.innerHTML = renderTree(message.tree, '');
+                        currentTreeData = message.tree;
+                        fileTreeContainer.innerHTML = renderTree(currentTreeData, '');
                         attachEvents();
+                        applySearchFilter();
                     }
                 });
 
+                function highlightMatches(text, term) {
+                    if (!term) return text;
+                    
+                    const regex = new RegExp(escapeRegExp(term), 'gi');
+                    return text.replace(regex, '<span class="match-highlight">$1</span>');
+                }
+
+                function escapeRegExp(string) {
+                    return string.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&');
+                }
+
                 function renderTree(tree, parentPath) {
+                    if (!tree || Object.keys(tree).length === 0) {
+                        return '<p class="tree-placeholder">No files found</p>';
+                    }
+                    
                     let html = '<ul>';
                     for (const name in tree) {
                         const fullPath = parentPath ? parentPath + '/' + name : name;
                         const children = tree[name].__children;
                         const isFolder = Object.keys(children).length > 0;
+                        const isVisible = searchTerm === '' || fullPath.toLowerCase().includes(searchTerm.toLowerCase());
+                        
+                        if (!isVisible) continue;
+                        
                         if (isFolder) {
                             html += \`
                                 <li>
-                                    <div class="folder" data-path="\${fullPath}" data-open="false">
-                                        <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
-                                        <span class="icon">\${folderIconClosed}</span>\${name}
+                                    <div class="folder" data-path="\${fullPath}" data-open="false" tabindex="0">
+                                        <span class="checkbox-container">
+                                            <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
+                                            <span class="custom-checkbox"></span>
+                                        </span>
+                                        <span class="icon">\${folderIconClosed}</span>
+                                        <span class="file-name">\${highlightMatches(name, searchTerm)}</span>
+                                        <span class="file-path">/\${name}</span>
                                     </div>
                                     <div class="children" style="display:none;">\${renderTree(children, fullPath)}</div>
                                 </li>
@@ -274,9 +545,14 @@ export class FolderWebview {
                         } else {
                             html += \`
                                 <li>
-                                    <div class="file" data-path="\${fullPath}">
-                                        <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
-                                        <span class="icon">\${getFileIcon(name)}</span>\${name}
+                                    <div class="file" data-path="\${fullPath}" tabindex="0">
+                                        <span class="checkbox-container">
+                                            <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
+                                            <span class="custom-checkbox"></span>
+                                        </span>
+                                        <span class="icon">\${getFileIcon(name)}</span>
+                                        <span class="file-name">\${highlightMatches(name, searchTerm)}</span>
+                                        <span class="file-path">\${fullPath}</span>
                                     </div>
                                 </li>
                             \`;
@@ -286,35 +562,85 @@ export class FolderWebview {
                     return html;
                 }
 
+                function applySearchFilter() {
+                    searchTerm = searchInput.value.trim().toLowerCase();
+                    
+                    if (currentTreeData) {
+                        fileTreeContainer.innerHTML = renderTree(currentTreeData, '');
+                        attachEvents();
+                    }
+                    
+                    // Auto-expand folders when searching
+                    if (searchTerm) {
+                        document.querySelectorAll('.folder').forEach(folder => {
+                            const childrenDiv = folder.nextElementSibling;
+                            if (childrenDiv && childrenDiv.querySelector('.match-highlight')) {
+                                folder.setAttribute('data-open', 'true');
+                                const iconEl = folder.querySelector('.icon');
+                                if (iconEl) iconEl.innerHTML = folderIconOpen;
+                                childrenDiv.style.display = 'block';
+                            }
+                        });
+                    }
+                }
+
                 function attachEvents() {
+                    // Folder toggle
                     document.querySelectorAll('.folder').forEach(folderEl => {
                         folderEl.addEventListener('click', e => {
-                            if (e.target.tagName.toLowerCase() === 'input') return;
+                            if (e.target.closest('.checkbox-container')) return;
                             e.stopPropagation();
-                            const open = folderEl.getAttribute('data-open') === 'true';
-                            folderEl.setAttribute('data-open', String(!open));
-                            const iconEl = folderEl.querySelector('.icon');
-                            iconEl.innerHTML = open ? folderIconClosed : folderIconOpen;
-                            const childrenDiv = folderEl.nextElementSibling;
-                            childrenDiv.style.display = open ? 'none' : 'block';
+                            toggleFolder(folderEl);
+                        });
+                        
+                        folderEl.addEventListener('keydown', e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleFolder(folderEl);
+                            }
                         });
                     });
-
+                    
+                    // Checkbox handling
                     document.querySelectorAll('.select-box').forEach(box => {
                         box.addEventListener('change', () => {
                             handleCheckboxChange(box);
                         });
                     });
+                    
+                    // Focus styles
+                    document.querySelectorAll('.folder, .file').forEach(el => {
+                        el.addEventListener('focus', () => {
+                            el.classList.add('focused');
+                        });
+                        
+                        el.addEventListener('blur', () => {
+                            el.classList.remove('focused');
+                        });
+                    });
+                }
+                
+                function toggleFolder(folderEl) {
+                    const open = folderEl.getAttribute('data-open') === 'true';
+                    folderEl.setAttribute('data-open', String(!open));
+                    const iconEl = folderEl.querySelector('.icon');
+                    if (iconEl) iconEl.innerHTML = open ? folderIconClosed : folderIconOpen;
+                    const childrenDiv = folderEl.nextElementSibling;
+                    if (childrenDiv) childrenDiv.style.display = open ? 'none' : 'block';
                 }
 
                 function handleCheckboxChange(box) {
                     const isChecked = box.checked;
                     const parentLi = box.closest('li');
+                    
                     if (parentLi) {
+                        // Update children
                         parentLi.querySelectorAll('.select-box').forEach(cb => {
                             cb.checked = isChecked;
+                            cb.indeterminate = false;
                         });
                     }
+                    
                     updateParentStates(box);
                 }
 
@@ -323,10 +649,25 @@ export class FolderWebview {
                     while (parentUl) {
                         const parentLi = parentUl.closest('li');
                         if (!parentLi) break;
-                        const parentCheckbox = parentLi.querySelector('> .folder .select-box');
+                        
+                        const parentFolder = parentLi.querySelector('> .folder');
+                        if (!parentFolder) {
+                            parentUl = parentLi.closest('ul');
+                            continue;
+                        }
+                        
+                        const parentCheckbox = parentFolder.querySelector('.select-box');
                         const childCheckboxes = parentLi.querySelectorAll('.children .select-box');
+                        
+                        if (childCheckboxes.length === 0) {
+                            parentUl = parentLi.closest('ul');
+                            continue;
+                        }
+                        
                         const checkedCount = Array.from(childCheckboxes).filter(cb => cb.checked).length;
-                        if (checkedCount === 0) {
+                        const indeterminateCount = Array.from(childCheckboxes).filter(cb => cb.indeterminate).length;
+                        
+                        if (checkedCount === 0 && indeterminateCount === 0) {
                             parentCheckbox.checked = false;
                             parentCheckbox.indeterminate = false;
                         } else if (checkedCount === childCheckboxes.length) {
@@ -336,9 +677,22 @@ export class FolderWebview {
                             parentCheckbox.checked = false;
                             parentCheckbox.indeterminate = true;
                         }
+                        
                         parentUl = parentLi.closest('ul');
                     }
                 }
+
+                // Search functionality
+                searchInput.addEventListener('input', () => {
+                    applySearchFilter();
+                });
+                
+                searchInput.addEventListener('keydown', e => {
+                    if (e.key === 'Escape') {
+                        searchInput.value = '';
+                        applySearchFilter();
+                    }
+                });
 
                 confirmBtn.onclick = () => {
                     const selectedPaths = Array.from(document.querySelectorAll('.select-box:checked'))
@@ -349,6 +703,11 @@ export class FolderWebview {
                 cancelBtn.onclick = () => {
                     vscode.postMessage({ command: 'cancel' });
                 };
+                
+                // Set focus to search input
+                setTimeout(() => {
+                    searchInput.focus();
+                }, 100);
             </script>
         </body>
         </html>
