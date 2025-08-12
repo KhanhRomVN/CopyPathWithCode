@@ -2,7 +2,7 @@
   "name": "copy-path-with-code",
   "displayName": "Copy Path with Code",
   "description": "Copy file path along with its content",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "publisher": "khanhromvn",
   "license": "MIT",
   "repository": {

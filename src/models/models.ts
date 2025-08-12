@@ -17,4 +17,5 @@ export interface Folder {
 export const state = {
     copiedFiles: [] as CopiedFile[],
     folders: [] as Folder[],
+    statusBarItem: undefined as vscode.StatusBarItem | undefined,
 };

@@ -41,6 +41,10 @@ export async function copyPathWithContent() {
         await vscode.env.clipboard.writeText(combined);
         const count = state.copiedFiles.length;
         vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
+        if (state.statusBarItem) {
+            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
+            state.statusBarItem.show();
+        }
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
         vscode.window.showErrorMessage(`Failed to copy: ${msg}`);
@@ -53,6 +57,9 @@ export async function clearClipboard() {
         state.copiedFiles.length = 0; // Clear giữ nguyên reference
         await vscode.env.clipboard.writeText('');
         vscode.window.showInformationMessage('Clipboard cleared');
+        if (state.statusBarItem) {
+            state.statusBarItem.hide();
+        }
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
         vscode.window.showErrorMessage(`Failed to clear clipboard: ${msg}`);
@@ -82,4 +89,8 @@ export async function copyFolderContents(folder: Folder) {
     const combined = toCopy.map(f => `${f.displayPath}\n\n${f.content}`).join('\n\n---\n\n');
     await vscode.env.clipboard.writeText(combined);
     vscode.window.showInformationMessage(`Copied ${toCopy.length} files from "${folder.name}"`);
+    if (state.statusBarItem) {
+        state.statusBarItem.text = `$(clippy) ${toCopy.length} file${toCopy.length > 1 ? 's' : ''} copied`;
+        state.statusBarItem.show();
+    }
 }
