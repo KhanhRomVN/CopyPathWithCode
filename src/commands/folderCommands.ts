@@ -10,8 +10,8 @@ import { getFolderById } from '../utils/folderUtils';
 export function registerFolderCommands(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const commands = [
         vscode.commands.registerCommand('copy-path-with-code.createFolder', () => createFolder(context, treeDataProvider)),
-        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', () => showAddFileWebview(context, treeDataProvider)),
-        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', () => showRemoveFileWebview(context, treeDataProvider)),
+        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', (folderItem) => showAddFileWebview(context, treeDataProvider, folderItem)),
+        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', (folderItem) => showRemoveFileWebview(context, treeDataProvider, folderItem)),
         vscode.commands.registerCommand('copy-path-with-code.openFolderFiles', (folder) => openFolderFiles(folder)),
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
         // wrapper để đảm bảo context và treeDataProvider luôn được truyền khi lệnh gọi
@@ -49,37 +49,52 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
     vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files`);
 }
 
-async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
-    if (!state.folders.length) {
-        vscode.window.showInformationMessage('No folders available. Create a folder first.');
+async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
+    let folderItem = folderParam;
+    if (!folderItem) {
+        if (!state.folders.length) {
+            vscode.window.showInformationMessage('No folders available. Create a folder first.');
+            return;
+        }
+        const pick = await vscode.window.showQuickPick(
+            state.folders.map(f => ({ label: f.name, folder: f })),
+            { placeHolder: 'Select folder to add files' }
+        );
+        if (!pick) {
+            return;
+        }
+        folderItem = pick.folder;
+    }
+    const folder = resolveFolder(folderItem);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
         return;
     }
-
-    const folderPick = await vscode.window.showQuickPick(
-        state.folders.map(f => ({ label: f.name, folder: f })),
-        { placeHolder: 'Select folder to add files' }
-    );
-
-    if (folderPick) {
-        FolderWebview.show(context, folderPick.folder.id, 'add', treeDataProvider);
-        // Note: actual adding happens when webview gửi confirm; we now refresh view after confirm
-    }
+    FolderWebview.show(context, folder.id, 'add', treeDataProvider);
 }
 
-async function showRemoveFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
-    if (!state.folders.length) {
-        vscode.window.showInformationMessage('No folders available.');
+async function showRemoveFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
+    let folderItem = folderParam;
+    if (!folderItem) {
+        if (!state.folders.length) {
+            vscode.window.showInformationMessage('No folders available.');
+            return;
+        }
+        const pick = await vscode.window.showQuickPick(
+            state.folders.map(f => ({ label: f.name, folder: f })),
+            { placeHolder: 'Select folder to remove files' }
+        );
+        if (!pick) {
+            return;
+        }
+        folderItem = pick.folder;
+    }
+    const folder = resolveFolder(folderItem);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
         return;
     }
-
-    const folderPick = await vscode.window.showQuickPick(
-        state.folders.map(f => ({ label: f.name, folder: f })),
-        { placeHolder: 'Select folder to remove files' }
-    );
-
-    if (folderPick) {
-        FolderWebview.show(context, folderPick.folder.id, 'remove', treeDataProvider);
-    }
+    FolderWebview.show(context, folder.id, 'remove', treeDataProvider);
 }
 
 async function openFolderFiles(folderParam: any) {

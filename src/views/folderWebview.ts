@@ -45,10 +45,8 @@ export class FolderWebview {
                 let files: string[];
                 if (mode === 'add') {
                     const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
-                    const existing = new Set(folder.files);
-                    files = allUris
-                        .map(uri => uri.fsPath)
-                        .filter(fsPath => !existing.has(vscode.Uri.file(fsPath).toString()));
+                    // Show all workspace files; existing ones will be pre-checked via initialSelectedPaths
+                    files = allUris.map(uri => uri.fsPath);
                 } else {
                     files = folder.files.map(fs => vscode.Uri.parse(fs).fsPath);
                 }
@@ -84,10 +82,8 @@ export class FolderWebview {
                     let files: string[];
                     if (mode === 'add') {
                         const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
-                        const existingSet = new Set(folder.files);
-                        files = allUris
-                            .map(uri => uri.fsPath)
-                            .filter(fsPath => !existingSet.has(vscode.Uri.file(fsPath).toString()));
+                        // Show all workspace files; pre-check existing via initialSelectedPaths
+                        files = allUris.map(uri => uri.fsPath);
                     } else {
                         files = folder.files.map(f => vscode.Uri.parse(f).fsPath);
                     }
@@ -203,6 +199,15 @@ export class FolderWebview {
             </div>
 
             <script>
+                // Pre-check in "add" mode: existing folder files are checked by default
+                const initialSelectedPaths = ${JSON.stringify(
+            mode === 'add'
+                ? folder.files.map(fs => {
+                    const fsPath = vscode.Uri.parse(fs).fsPath;
+                    return vscode.workspace.asRelativePath(fsPath).replace(/\\/g, '/');
+                })
+                : []
+        )};
                 const vscode = acquireVsCodeApi();
                 const fileTreeContainer = document.getElementById('file-tree');
                 const confirmBtn = document.getElementById('confirm-btn');
@@ -260,7 +265,7 @@ export class FolderWebview {
                             html += \`
                                 <li>
                                     <div class="folder" data-path="\${fullPath}" data-open="false">
-                                        <input type="checkbox" class="select-box" data-path="\${fullPath}">
+                                        <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
                                         <span class="icon">\${folderIconClosed}</span>\${name}
                                     </div>
                                     <div class="children" style="display:none;">\${renderTree(children, fullPath)}</div>
@@ -270,7 +275,7 @@ export class FolderWebview {
                             html += \`
                                 <li>
                                     <div class="file" data-path="\${fullPath}">
-                                        <input type="checkbox" class="select-box" data-path="\${fullPath}">
+                                        <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
                                         <span class="icon">\${getFileIcon(name)}</span>\${name}
                                     </div>
                                 </li>
