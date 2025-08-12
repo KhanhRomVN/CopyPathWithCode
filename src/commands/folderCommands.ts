@@ -10,8 +10,8 @@ import { getFolderById } from '../utils/folderUtils';
 export function registerFolderCommands(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const commands = [
         vscode.commands.registerCommand('copy-path-with-code.createFolder', () => createFolder(context, treeDataProvider)),
-        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', () => showAddFileWebview(context)),
-        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', () => showRemoveFileWebview(context)),
+        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', () => showAddFileWebview(context, treeDataProvider)),
+        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', () => showRemoveFileWebview(context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.openFolderFiles', (folder) => openFolderFiles(folder)),
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
         // wrapper để đảm bảo context và treeDataProvider luôn được truyền khi lệnh gọi
@@ -49,7 +49,7 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
     vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files`);
 }
 
-async function showAddFileWebview(context: vscode.ExtensionContext) {
+async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     if (!state.folders.length) {
         vscode.window.showInformationMessage('No folders available. Create a folder first.');
         return;
@@ -61,12 +61,12 @@ async function showAddFileWebview(context: vscode.ExtensionContext) {
     );
 
     if (folderPick) {
-        FolderWebview.show(context, folderPick.folder.id, 'add');
-        // Note: actual adding happens when webview gửi confirm; webview currently chưa post xử lý confirm -> có thể bổ sung để update ngay
+        FolderWebview.show(context, folderPick.folder.id, 'add', treeDataProvider);
+        // Note: actual adding happens when webview gửi confirm; we now refresh view after confirm
     }
 }
 
-async function showRemoveFileWebview(context: vscode.ExtensionContext) {
+async function showRemoveFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     if (!state.folders.length) {
         vscode.window.showInformationMessage('No folders available.');
         return;
@@ -78,7 +78,7 @@ async function showRemoveFileWebview(context: vscode.ExtensionContext) {
     );
 
     if (folderPick) {
-        FolderWebview.show(context, folderPick.folder.id, 'remove');
+        FolderWebview.show(context, folderPick.folder.id, 'remove', treeDataProvider);
     }
 }
 

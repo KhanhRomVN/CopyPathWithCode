@@ -6,8 +6,12 @@ import { saveFolders } from '../utils/folderUtils.js';
 
 export class FolderWebview {
     private static currentPanel: vscode.WebviewPanel | undefined;
+    private static treeDataProvider: import('../providers/folderTreeDataProvider').FolderTreeDataProvider | undefined;
 
-    static show(context: vscode.ExtensionContext, folderId: string, mode: 'add' | 'remove') {
+    static show(context: vscode.ExtensionContext, folderId: string, mode: 'add' | 'remove', treeDataProvider?: import('../providers/folderTreeDataProvider').FolderTreeDataProvider) {
+        if (treeDataProvider) {
+            this.treeDataProvider = treeDataProvider;
+        }
         const folder = getFolderById(folderId);
         if (!folder) return;
 
@@ -57,28 +61,39 @@ export class FolderWebview {
             }
 
             if (message.command === 'confirmSelection') {
+                // Update folder model
                 const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-                const selectedPaths: string[] = message.paths.map((p: string) => vscode.Uri.file(
-                    path.join(workspaceRoot, p)
-                ).toString());
+                const selectedPaths = (message.paths as string[]).map(p =>
+                    vscode.Uri.file(path.join(workspaceRoot, p)).toString()
+                );
 
                 if (mode === 'add') {
-                    // Merge file mới
-                    const existing = new Set(folder.files);
-                    for (const file of selectedPaths) {
-                        existing.add(file);
-                    }
-                    folder.files = Array.from(existing);
+                    folder.files = Array.from(new Set([...folder.files, ...selectedPaths]));
                     vscode.window.showInformationMessage(`Added ${selectedPaths.length} file(s) to ${folder.name}`);
-                }
-                else if (mode === 'remove') {
-                    // Xóa file đã chọn
+                } else {
                     folder.files = folder.files.filter(f => !selectedPaths.includes(f));
                     vscode.window.showInformationMessage(`Removed ${selectedPaths.length} file(s) from ${folder.name}`);
                 }
 
-                // Lưu lại sau khi cập nhật
+                // Persist and refresh in-place
                 saveFolders(context);
+                // Refresh extension view
+                this.treeDataProvider?.refresh();
+                // Refresh file tree after update
+                {
+                    let files: string[];
+                    if (mode === 'add') {
+                        const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
+                        const existingSet = new Set(folder.files);
+                        files = allUris
+                            .map(uri => uri.fsPath)
+                            .filter(fsPath => !existingSet.has(vscode.Uri.file(fsPath).toString()));
+                    } else {
+                        files = folder.files.map(f => vscode.Uri.parse(f).fsPath);
+                    }
+                    const treeData = this.buildTree(files);
+                    this.currentPanel?.webview.postMessage({ command: 'updateFileTree', tree: treeData });
+                }
             }
 
             if (message.command === 'cancel') {
