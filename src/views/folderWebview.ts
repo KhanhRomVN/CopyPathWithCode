@@ -38,12 +38,10 @@ export class FolderWebview {
             });
         }
 
-        // Lấy icon theme hiện tại
-        const iconTheme = vscode.workspace.getConfiguration('workbench').get<string>('iconTheme') || '';
         const themeKind = vscode.window.activeColorTheme.kind;
         const isDarkTheme = themeKind === vscode.ColorThemeKind.Dark || themeKind === vscode.ColorThemeKind.HighContrast;
 
-        this.currentPanel.webview.html = this.getWebviewContent(context, title, folder, mode, iconTheme, isDarkTheme);
+        this.currentPanel.webview.html = this.getWebviewContent(context, title, folder, mode, isDarkTheme);
 
         // Nhận message từ webview
         this.currentPanel.webview.onDidReceiveMessage(async message => {
@@ -127,13 +125,8 @@ export class FolderWebview {
         title: string,
         folder: Folder,
         mode: 'add' | 'remove',
-        iconTheme: string,
         isDarkTheme: boolean
     ): string {
-        const codiconUri = this.currentPanel!.webview.asWebviewUri(
-            vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css')
-        );
-
         return /*html*/`
         <!DOCTYPE html>
         <html lang="en">
@@ -141,7 +134,6 @@ export class FolderWebview {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <title>${title}</title>
-            <link rel="stylesheet" href="${codiconUri}">
             <style>
                 :root {
                     --vscode-button-height: 28px;
@@ -288,6 +280,8 @@ export class FolderWebview {
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    font-size: 16px;
+                    line-height: 20px;
                 }
                 
                 .folder-icon {
@@ -421,11 +415,11 @@ export class FolderWebview {
                 <div class="header">
                     <h1>${title}</h1>
                     <div class="folder-info">
-                        <span class="codicon codicon-folder folder-icon"></span>
+                        <span class="icon">📁</span>
                         <span>Folder ID: ${folder.id}</span>
                     </div>
                     <div class="search-container">
-                        <span class="codicon codicon-search search-icon"></span>
+                        <span class="search-icon">🔍</span>
                         <input id="search-input" type="text" placeholder="Search files..." autocomplete="off">
                     </div>
                 </div>
@@ -455,41 +449,47 @@ export class FolderWebview {
                 const searchInput = document.getElementById('search-input');
                 const confirmBtn = document.getElementById('confirm-btn');
                 const cancelBtn = document.getElementById('cancel-btn');
-                const usingTheme = "${iconTheme}" !== "";
                 let currentTreeData = null;
                 let searchTerm = '';
 
                 vscode.postMessage({ command: 'requestFileList', mode: '${mode}' });
 
-                const folderIconClosed = usingTheme
-                    ? '<span class="codicon codicon-folder"></span>'
-                    : '<span class="folder-icon">📁</span>';
-                const folderIconOpen = usingTheme
-                    ? '<span class="codicon codicon-folder-opened"></span>'
-                    : '<span class="folder-icon">📂</span>';
-
                 function getFileIcon(fileName) {
-                    if (usingTheme) {
-                        return '<span class="codicon codicon-symbol-file file-icon"></span>';
-                    }
                     const ext = fileName.split('.').pop().toLowerCase();
-                    switch(ext) {
-                        case 'js': return '🟨';
-                        case 'ts': return '🟦';
-                        case 'json': return '📜';
-                        case 'md': return '📝';
-                        case 'html': return '🌐';
-                        case 'css': return '🎨';
-                        case 'png':
-                        case 'jpg':
-                        case 'jpeg':
-                        case 'gif': return '🖼️';
-                        case 'svg': return '✒️';
-                        case 'pdf': return '📕';
-                        case 'zip':
-                        case 'rar': return '📦';
-                        default: return '📄';
-                    }
+                    const iconMap = {
+                        // Programming languages
+                        'js': '🟨', 'ts': '🟦', 'jsx': '⚛️', 'tsx': '⚛️',
+                        'json': '📜', 'md': '📝', 'html': '🌐', 'htm': '🌐',
+                        'css': '🎨', 'scss': '🎨', 'sass': '🎨', 'less': '🎨',
+                        'php': '🐘', 'py': '🐍', 'rb': '💎', 'java': '☕', 'kt': '🔷', 'dart': '🎯',
+                        'c': '🔧', 'cpp': '🔧', 'h': '🔧', 'hpp': '🔧', 'cs': '⚔️', 'swift': '🐦', 'go': '🐹',
+                        'sql': '💾', 'pl': '🐪', 'lua': '🌙', 'rs': '🦀', 'sh': '💻', 'bat': '🪟', 'ps1': '💻',
+                        
+                        // Data formats
+                        'xml': '📄', 'yml': '⚙️', 'yaml': '⚙️', 'toml': '⚙️', 'ini': '⚙️', 'cfg': '⚙️', 'conf': '⚙️',
+                        'csv': '📊', 'tsv': '📊', 'xls': '📊', 'xlsx': '📊', 'ods': '📊',
+                        
+                        // Media files
+                        'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'svg': '✒️', 'ico': '🖼️', 'webp': '🖼️',
+                        'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'ogg': '🎵', 'm4a': '🎵',
+                        'mp4': '🎬', 'avi': '🎬', 'mov': '🎬', 'mkv': '🎬', 'webm': '🎬', 'flv': '🎬',
+                        
+                        // Documents
+                        'pdf': '📕', 'doc': '📄', 'docx': '📄', 'rtf': '📄', 'odt': '📄', 'txt': '📄', 'log': '📃',
+                        'ppt': '📊', 'pptx': '📊', 'odp': '📊',
+                        
+                        // Archives
+                        'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦', 'bz2': '📦', 'xz': '📦',
+                        
+                        // Executables
+                        'exe': '⚙️', 'dll': '⚙️', 'so': '⚙️', 'dmg': '🍎', 'pkg': '🍎', 'deb': '🐧', 'rpm': '🐧',
+                        'apk': '📱', 'ipa': '📱',
+                        
+                        // Configuration
+                        'env': '⚙️', 'gitignore': '📁', 'dockerfile': '🐳', 'makefile': '⚙️', 'lock': '🔒'
+                    };
+                    
+                    return iconMap[ext] || '📄';
                 }
 
                 window.addEventListener('message', event => {
@@ -530,16 +530,16 @@ export class FolderWebview {
                         if (isFolder) {
                             html += \`
                                 <li>
-                                    <div class="folder" data-path="\${fullPath}" data-open="false" tabindex="0">
+                                    <div class="folder" data-path="\${fullPath}" data-open="true" tabindex="0">
                                         <span class="checkbox-container">
                                             <input type="checkbox" class="select-box" data-path="\${fullPath}" \${initialSelectedPaths.includes(fullPath) ? 'checked' : ''}>
                                             <span class="custom-checkbox"></span>
                                         </span>
-                                        <span class="icon">\${folderIconClosed}</span>
+                                        <span class="icon">📂</span>
                                         <span class="file-name">\${highlightMatches(name, searchTerm)}</span>
                                         <span class="file-path">/\${name}</span>
                                     </div>
-                                    <div class="children" style="display:none;">\${renderTree(children, fullPath)}</div>
+                                    <div class="children">\${renderTree(children, fullPath)}</div>
                                 </li>
                             \`;
                         } else {
@@ -568,19 +568,6 @@ export class FolderWebview {
                     if (currentTreeData) {
                         fileTreeContainer.innerHTML = renderTree(currentTreeData, '');
                         attachEvents();
-                    }
-                    
-                    // Auto-expand folders when searching
-                    if (searchTerm) {
-                        document.querySelectorAll('.folder').forEach(folder => {
-                            const childrenDiv = folder.nextElementSibling;
-                            if (childrenDiv && childrenDiv.querySelector('.match-highlight')) {
-                                folder.setAttribute('data-open', 'true');
-                                const iconEl = folder.querySelector('.icon');
-                                if (iconEl) iconEl.innerHTML = folderIconOpen;
-                                childrenDiv.style.display = 'block';
-                            }
-                        });
                     }
                 }
 
@@ -624,7 +611,7 @@ export class FolderWebview {
                     const open = folderEl.getAttribute('data-open') === 'true';
                     folderEl.setAttribute('data-open', String(!open));
                     const iconEl = folderEl.querySelector('.icon');
-                    if (iconEl) iconEl.innerHTML = open ? folderIconClosed : folderIconOpen;
+                    if (iconEl) iconEl.textContent = open ? '📁' : '📂';
                     const childrenDiv = folderEl.nextElementSibling;
                     if (childrenDiv) childrenDiv.style.display = open ? 'none' : 'block';
                 }
