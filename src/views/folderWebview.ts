@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { getFolderById } from '../utils/folderUtils';
 import { Folder } from '../models/models';
+import { saveFolders } from '../utils/folderUtils.js';
 
 export class FolderWebview {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -54,7 +55,37 @@ export class FolderWebview {
                     tree: treeData
                 });
             }
+
+            if (message.command === 'confirmSelection') {
+                const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
+                const selectedPaths: string[] = message.paths.map((p: string) => vscode.Uri.file(
+                    path.join(workspaceRoot, p)
+                ).toString());
+
+                if (mode === 'add') {
+                    // Merge file mới
+                    const existing = new Set(folder.files);
+                    for (const file of selectedPaths) {
+                        existing.add(file);
+                    }
+                    folder.files = Array.from(existing);
+                    vscode.window.showInformationMessage(`Added ${selectedPaths.length} file(s) to ${folder.name}`);
+                }
+                else if (mode === 'remove') {
+                    // Xóa file đã chọn
+                    folder.files = folder.files.filter(f => !selectedPaths.includes(f));
+                    vscode.window.showInformationMessage(`Removed ${selectedPaths.length} file(s) from ${folder.name}`);
+                }
+
+                // Lưu lại sau khi cập nhật
+                saveFolders(context);
+            }
+
+            if (message.command === 'cancel') {
+                this.currentPanel?.dispose();
+            }
         });
+
     }
 
     /** Build cây thư mục từ danh sách file path */
