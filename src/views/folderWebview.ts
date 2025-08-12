@@ -5,7 +5,7 @@ import { Folder } from '../models/models';
 import { saveFolders } from '../utils/folderUtils.js';
 
 export class FolderWebview {
-    private static currentPanel: vscode.WebviewPanel | undefined;
+    private static panels: Record<'add' | 'remove', vscode.WebviewPanel | undefined> = { add: undefined, remove: undefined };
     private static treeDataProvider: import('../providers/folderTreeDataProvider').FolderTreeDataProvider | undefined;
 
     static show(context: vscode.ExtensionContext, folderId: string, mode: 'add' | 'remove', treeDataProvider?: import('../providers/folderTreeDataProvider').FolderTreeDataProvider) {
@@ -19,10 +19,13 @@ export class FolderWebview {
             ? `Add Files to ${folder.name}`
             : `Remove Files from ${folder.name}`;
 
-        if (this.currentPanel) {
-            this.currentPanel.reveal();
+        // Use separate panel per mode
+        let panel = FolderWebview.panels[mode];
+        if (panel) {
+            panel.title = title;
+            panel.reveal();
         } else {
-            this.currentPanel = vscode.window.createWebviewPanel(
+            panel = vscode.window.createWebviewPanel(
                 'folderWebview',
                 title,
                 vscode.ViewColumn.One,
@@ -32,19 +35,19 @@ export class FolderWebview {
                     retainContextWhenHidden: true
                 }
             );
-
-            this.currentPanel.onDidDispose(() => {
-                this.currentPanel = undefined;
+            panel.onDidDispose(() => {
+                FolderWebview.panels[mode] = undefined;
             });
+            FolderWebview.panels[mode] = panel;
         }
 
         const themeKind = vscode.window.activeColorTheme.kind;
         const isDarkTheme = themeKind === vscode.ColorThemeKind.Dark || themeKind === vscode.ColorThemeKind.HighContrast;
 
-        this.currentPanel.webview.html = this.getWebviewContent(context, title, folder, mode, isDarkTheme);
+        panel.webview.html = this.getWebviewContent(context, title, folder, mode, isDarkTheme);
 
         // Nhận message từ webview
-        this.currentPanel.webview.onDidReceiveMessage(async message => {
+        panel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'requestFileList') {
                 let files: string[];
                 if (mode === 'add') {
@@ -56,7 +59,7 @@ export class FolderWebview {
                 }
 
                 const treeData = this.buildTree(files);
-                this.currentPanel?.webview.postMessage({
+                panel.webview.postMessage({
                     command: 'updateFileTree',
                     tree: treeData
                 });
@@ -92,12 +95,12 @@ export class FolderWebview {
                         files = folder.files.map(f => vscode.Uri.parse(f).fsPath);
                     }
                     const treeData = this.buildTree(files);
-                    this.currentPanel?.webview.postMessage({ command: 'updateFileTree', tree: treeData });
+                    panel.webview.postMessage({ command: 'updateFileTree', tree: treeData });
                 }
             }
 
             if (message.command === 'cancel') {
-                this.currentPanel?.dispose();
+                panel.dispose();
             }
         });
     }
