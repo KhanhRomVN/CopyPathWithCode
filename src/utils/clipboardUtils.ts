@@ -30,17 +30,29 @@ export async function copyPathWithContent() {
             content = document.getText();
         }
 
-        // Xóa file cũ có cùng basePath
-        state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
-        state.copiedFiles.push({ displayPath, basePath, content });
+        // Format content for normal copy
+        const formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
+
+        // Remove any existing file with same basePath and format
+        state.copiedFiles = state.copiedFiles.filter(f =>
+            !(f.basePath === basePath && f.format === 'normal')
+        );
+
+        state.copiedFiles.push({
+            displayPath,
+            basePath,
+            content: formattedContent,
+            format: 'normal'
+        });
 
         const combined = state.copiedFiles
-            .map(f => `${f.displayPath}\n\n${f.content}`)
+            .map(f => f.content)
             .join('\n\n---\n\n');
 
         await vscode.env.clipboard.writeText(combined);
         const count = state.copiedFiles.length;
         vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
+
         if (state.statusBarItem) {
             state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
             state.statusBarItem.show();
@@ -117,9 +129,17 @@ export async function copyPathWithContentAndError() {
             formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
         }
 
-        // Remove old file with same basePath
-        state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
-        state.copiedFiles.push({ displayPath, basePath, content: formattedContent });
+        // Remove any existing file with same basePath and format
+        state.copiedFiles = state.copiedFiles.filter(f =>
+            !(f.basePath === basePath && f.format === 'error')
+        );
+
+        state.copiedFiles.push({
+            displayPath,
+            basePath,
+            content: formattedContent,
+            format: 'error'
+        });
 
         const combined = state.copiedFiles
             .map(f => f.content)
@@ -165,22 +185,28 @@ export async function copyFolderContents(folder: Folder) {
         try {
             const uri = vscode.Uri.parse(uriStr);
             const doc = await vscode.workspace.openTextDocument(uri);
+            const displayPath = vscode.workspace.asRelativePath(uri);
+
             toCopy.push({
-                displayPath: vscode.workspace.asRelativePath(uri),
-                basePath: vscode.workspace.asRelativePath(uri),
-                content: doc.getText()
+                displayPath,
+                basePath: displayPath,
+                content: `${displayPath}:\n\`\`\`\n${doc.getText()}\n\`\`\``,
+                format: 'normal'
             });
         } catch (e) {
             console.error(`Failed to read ${uriStr}:`, e);
         }
     }
+
     if (!toCopy.length) {
         vscode.window.showWarningMessage('No files to copy in this folder');
         return;
     }
-    const combined = toCopy.map(f => `${f.displayPath}\n\n${f.content}`).join('\n\n---\n\n');
+
+    const combined = toCopy.map(f => f.content).join('\n\n---\n\n');
     await vscode.env.clipboard.writeText(combined);
     vscode.window.showInformationMessage(`Copied ${toCopy.length} files from "${folder.name}"`);
+
     if (state.statusBarItem) {
         state.statusBarItem.text = `$(clippy) ${toCopy.length} file${toCopy.length > 1 ? 's' : ''} copied`;
         state.statusBarItem.show();
