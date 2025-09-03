@@ -1,12 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state, Folder, CopiedFile } from '../models/models';
-
-export interface ErrorInfo {
-    message: string;
-    line: number;
-    content: string;
-}
+import { state, Folder, CopiedFile, ErrorInfo } from '../models/models';
 
 export async function copyPathWithContent() {
     try {
@@ -58,22 +52,6 @@ export async function copyPathWithContent() {
     }
 }
 
-export function parseErrorFromContent(content: string): ErrorInfo | null {
-    // Pattern để phát hiện error format: "1. <error_message> | <error_line> | <error_content_line>"
-    const errorPattern = /^1\.\s*(.+?)\s*\|\s*(\d+)\s*\|\s*(.+)$/m;
-    const match = content.match(errorPattern);
-
-    if (match) {
-        return {
-            message: match[1].trim(),
-            line: parseInt(match[2], 10),
-            content: match[3].trim()
-        };
-    }
-
-    return null;
-}
-
 export async function copyPathWithContentAndError() {
     try {
         const editor = vscode.window.activeTextEditor;
@@ -82,6 +60,7 @@ export async function copyPathWithContentAndError() {
         }
 
         const document = editor.document;
+        const selection = editor.selection;
         const filePath = document.uri.fsPath;
 
         let displayPath = filePath;
@@ -93,29 +72,52 @@ export async function copyPathWithContentAndError() {
         }
 
         let content: string;
-        const sel = editor.selection;
-        if (!sel.isEmpty) {
-            content = document.getText(sel);
-            const startLine = sel.start.line + 1;
-            const endLine = sel.end.line + 1;
+        if (!selection.isEmpty) {
+            content = document.getText(selection);
+            const startLine = selection.start.line + 1;
+            const endLine = selection.end.line + 1;
             displayPath = `${displayPath}:${startLine}-${endLine}`;
         } else {
             content = document.getText();
         }
 
-        // Parse error information từ content
-        const errorInfo = parseErrorFromContent(content);
+        // Get errors and warnings from Problems panel for this document
+        const diagnostics = vscode.languages.getDiagnostics(document.uri);
+        const errors: ErrorInfo[] = [];
+        let errorCounter = 1; // Counter for proper numbering
+
+        diagnostics.forEach(diagnostic => {
+            // Only include errors (red) and warnings (yellow)
+            // Severity: 0=Error, 1=Warning, 2=Information, 3=Hint
+            if (diagnostic.severity <= 1) {
+                // Check if diagnostic is within selection or applies to entire file
+                if (selection.isEmpty || diagnostic.range.intersection(selection)) {
+                    const line = diagnostic.range.start.line;
+                    errors.push({
+                        message: diagnostic.message,
+                        line: line + 1,
+                        content: document.lineAt(line).text.trim(),
+                        severity: diagnostic.severity,
+                        index: errorCounter++
+                    });
+                }
+            }
+        });
 
         let formattedContent: string;
-        if (errorInfo) {
-            // Format với error information
-            formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\`\n1. ${errorInfo.message} | ${errorInfo.line} | ${errorInfo.content}`;
+        if (errors.length > 0) {
+            // Format with error information - use proper numbering
+            const errorString = errors.map(err =>
+                `${err.index}. ${err.message} | ${err.line} | ${err.content}`
+            ).join('\n');
+
+            formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\`\n${errorString}`;
         } else {
-            // Format thông thường nếu không tìm thấy error
+            // Regular format if no errors found
             formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
         }
 
-        // Xóa file cũ có cùng basePath
+        // Remove old file with same basePath
         state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
         state.copiedFiles.push({ displayPath, basePath, content: formattedContent });
 
@@ -125,10 +127,14 @@ export async function copyPathWithContentAndError() {
 
         await vscode.env.clipboard.writeText(combined);
         const count = state.copiedFiles.length;
-        vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} with error info to clipboard`);
+        const errorCount = errors.length;
+
+        vscode.window.showInformationMessage(
+            `Copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to clipboard`
+        );
 
         if (state.statusBarItem) {
-            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied (with error)`;
+            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} (${errorCount} error${errorCount !== 1 ? 's' : ''})`;
             state.statusBarItem.show();
         }
     } catch (err: any) {

@@ -24,4 +24,6 @@ export interface ErrorInfo {
     message: string;
     line: number;
     content: string;
+    severity: number; // 0=Error, 1=Warning
+    index: number;    // For proper numbering
 }
