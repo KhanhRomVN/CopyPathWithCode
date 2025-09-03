@@ -2,7 +2,7 @@
   "name": "copy-path-with-code",
   "displayName": "Copy Path with Code",
   "description": "Copy file path along with its content",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "khanhromvn",
   "license": "MIT",
   "repository": {
@@ -29,49 +29,74 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-  {
-    "command": "copy-path-with-code.copyPathWithContent",
-    "title": "Copy Path and Content"
-  },
-  {
-    "command": "copy-path-with-code.copyPathWithContentAndError",
-    "title": "Copy Path and Content with Error"
-  },
-  {
-    "command": "copy-path-with-code.clearClipboard",
-    "title": "Clear Copied Paths and Content"
-  },
-  {
-    "command": "copy-path-with-code.createFolder",
-    "title": "Create Folder",
-    "icon": "add"
-  },
-  {
-    "command": "copy-path-with-code.showFolderMenu",
-    "title": "Folder Menu",
-    "icon": "$(ellipsis)"
-  },
-  {
-    "command": "copy-path-with-code.addFileToFolder",
-    "title": "Add Current File to Folder"
-  },
-  {
-    "command": "copy-path-with-code.removeFileFromFolder",
-    "title": "Remove Current File from Folder"
-  },
-  {
-    "command": "copy-path-with-code.openFolderFiles",
-    "title": "Open Folder Files"
-  },
-  {
-    "command": "copy-path-with-code.copyFolderContents",
-    "title": "Copy Folder Contents"
-  },
-  {
-    "command": "copy-path-with-code.deleteFolder",
-    "title": "Delete Folder"
-  }
-],
+      {
+        "command": "copy-path-with-code.copyPathWithContent",
+        "title": "Copy Path and Content"
+      },
+      {
+        "command": "copy-path-with-code.copyPathWithContentAndError",
+        "title": "Copy Path and Content with Error"
+      },
+      {
+        "command": "copy-path-with-code.clearClipboard",
+        "title": "Clear Copied Paths and Content"
+      },
+      {
+        "command": "copy-path-with-code.createFolder",
+        "title": "Create Folder",
+        "icon": "add"
+      },
+      {
+        "command": "copy-path-with-code.showFolderMenu",
+        "title": "Folder Menu",
+        "icon": "$(ellipsis)"
+      },
+      {
+        "command": "copy-path-with-code.addFileToFolder",
+        "title": "Add Current File to Folder"
+      },
+      {
+        "command": "copy-path-with-code.removeFileFromFolder",
+        "title": "Remove Current File from Folder"
+      },
+      {
+        "command": "copy-path-with-code.openFolderFiles",
+        "title": "Open Folder Files"
+      },
+      {
+        "command": "copy-path-with-code.copyFolderContents",
+        "title": "Copy Folder Contents"
+      },
+      {
+        "command": "copy-path-with-code.deleteFolder",
+        "title": "Delete Folder"
+      },
+      {
+        "command": "copy-path-with-code.toggleClipboardDetection",
+        "title": "Toggle Clipboard Detection",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.clearClipboardQueue",
+        "title": "Clear Clipboard Queue",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.openClipboardFile",
+        "title": "Open Clipboard File",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.refreshClipboardView",
+        "title": "Refresh Clipboard View",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.showLogs",
+        "title": "Show Extension Logs",
+        "category": "Copy Path with Code"
+      }
+    ],
     "keybindings": [
       {
         "command": "copy-path-with-code.copyPathWithContent",
@@ -99,6 +124,11 @@
         "command": "copy-path-with-code.removeFileFromFolder",
         "key": "ctrl+alt+d",
         "mac": "cmd+alt+d"
+      },
+      {
+        "command": "copy-path-with-code.clearClipboardQueue",
+        "key": "ctrl+alt+shift+z",
+        "mac": "cmd+alt+shift+z"
       }
     ],
     "viewsContainers": {
@@ -117,25 +147,42 @@
           "name": "Code Folders",
           "contextualTitle": "Code Folders"
         }
+      ],
+      "explorer": [
+        {
+          "id": "clipboard-detection",
+          "name": "Clipboard Files",
+          "when": "copyPathWithCode.hasClipboardFiles"
+        }
       ]
     },
-"menus": {
-  "view/item/context": [
-    {
-      "command": "copy-path-with-code.showFolderMenu",
-      "when": "view == folderManager && viewItem == folder",
-      "group": "inline"
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "copy-path-with-code.showFolderMenu",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "copy-path-with-code.createFolder",
+          "when": "view == folderManager",
+          "group": "navigation",
+          "icon": "$(add)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Copy Path with Code",
+      "properties": {
+        "copyPathWithCode.enableClipboardDetection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect files from clipboard content"
+        }
+      }
     }
-  ],
-  "view/title": [
-    {
-      "command": "copy-path-with-code.createFolder",
-      "when": "view == folderManager",
-      "group": "navigation",
-      "icon": "$(add)"
-    }
-  ]
-}
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

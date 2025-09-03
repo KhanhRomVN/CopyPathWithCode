@@ -1,35 +1,66 @@
 import * as vscode from 'vscode';
-import { state, Folder } from '../models/models';
+import * as path from 'path';
+import { state, Folder, ClipboardFile } from '../models/models';
 import { saveFolders } from '../utils/folderUtils';
 import { copyFolderContents } from '../utils/clipboardUtils';
 import { FolderWebview } from '../views/folderWebview';
 import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
+import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvider';
 import { getFolderById } from '../utils/folderUtils';
+import { ClipboardDetector } from '../utils/clipboardDetector';
+import { Logger } from '../utils/logger';
 
-export function registerFolderCommands(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+export function registerFolderCommands(
+    context: vscode.ExtensionContext,
+    treeDataProvider: FolderTreeDataProvider,
+    clipboardTreeDataProvider: ClipboardTreeDataProvider
+) {
+    const clipboardDetector = ClipboardDetector.init(context);
+
     const commands = [
         vscode.commands.registerCommand('copy-path-with-code.createFolder', () => createFolder(context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', (folderItem) => showAddFileWebview(context, treeDataProvider, folderItem)),
         vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', (folderItem) => showRemoveFileWebview(context, treeDataProvider, folderItem)),
         vscode.commands.registerCommand('copy-path-with-code.openFolderFiles', (folder) => openFolderFiles(folder)),
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
-        // wrapper để đảm bảo context và treeDataProvider luôn được truyền khi lệnh gọi
         vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context, treeDataProvider)),
-        vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder))
+        vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder)),
+
+        // Clipboard detection commands
+        vscode.commands.registerCommand('copy-path-with-code.toggleClipboardDetection', () => {
+            const currentlyEnabled = state.isClipboardDetectionEnabled;
+            clipboardDetector.toggleDetection(!currentlyEnabled);
+            vscode.window.showInformationMessage(
+                `Clipboard detection ${currentlyEnabled ? 'disabled' : 'enabled'}`
+            );
+        }),
+
+        vscode.commands.registerCommand('copy-path-with-code.clearClipboardQueue', () => {
+            clipboardDetector.clearQueue();
+            vscode.window.showInformationMessage('Clipboard queue cleared');
+        }),
+
+        vscode.commands.registerCommand('copy-path-with-code.openClipboardFile', (file: ClipboardFile) => {
+            openClipboardFilePreview(file);
+        }),
+
+        vscode.commands.registerCommand('copy-path-with-code.showLogs', () => {
+            Logger.show();
+        }),
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
 }
 
-/** Resolve đầu vào có thể là TreeItem (từ TreeView) hoặc Folder (model) -> trả về Folder từ state */
+/** Resolve input can be TreeItem (from TreeView) or Folder (model) -> return Folder from state */
 function resolveFolder(folderOrItem: any): Folder | undefined {
     if (!folderOrItem) return undefined;
-    // Nếu có id -> tìm trong state theo id
+    // If has id -> find in state by id
     if (typeof folderOrItem.id === 'string') {
         return getFolderById(folderOrItem.id);
     }
-    // Nếu có name + files có thể là Folder-like object -> so khớp theo name
+    // If has name + files could be Folder-like object -> match by name
     if (typeof folderOrItem.name === 'string') {
         return state.folders.find(f => f.name === folderOrItem.name);
     }
@@ -134,7 +165,6 @@ async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, 
     }
 }
 
-
 async function renameFolder(folderParam: any, context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const folder = resolveFolder(folderParam);
     if (!folder) {
@@ -184,7 +214,72 @@ async function showFolderMenu(folderParam: any) {
             'Delete Folder': 'copy-path-with-code.deleteFolder'
         };
 
-        // Gọi command và truyền vào Folder (không phải TreeItem)
+        // Call command and pass Folder (not TreeItem)
         await vscode.commands.executeCommand(commandMap[selection], folder);
     }
+}
+
+// Function to open preview for file from clipboard
+async function openClipboardFilePreview(file: ClipboardFile) {
+    try {
+        const document = await vscode.workspace.openTextDocument({
+            content: file.content,
+            language: getLanguageFromFileName(file.filePath)
+        });
+
+        await vscode.window.showTextDocument(document, {
+            preview: true,
+            viewColumn: vscode.ViewColumn.Beside
+        });
+
+        Logger.info(`Opened preview for clipboard file: ${file.filePath}`);
+    } catch (error) {
+        Logger.error(`Failed to open clipboard file preview: ${file.filePath}`, error);
+        vscode.window.showErrorMessage(`Failed to open file preview: ${file.filePath}`);
+    }
+}
+
+// Helper function to detect language from filename
+function getLanguageFromFileName(filePath: string): string {
+    const ext = path.extname(filePath.split(':')[0]).toLowerCase(); // Remove line range if present
+    const languageMap: Record<string, string> = {
+        '.js': 'javascript',
+        '.ts': 'typescript',
+        '.jsx': 'javascriptreact',
+        '.tsx': 'typescriptreact',
+        '.py': 'python',
+        '.java': 'java',
+        '.c': 'c',
+        '.cpp': 'cpp',
+        '.cc': 'cpp',
+        '.cxx': 'cpp',
+        '.h': 'c',
+        '.hpp': 'cpp',
+        '.html': 'html',
+        '.htm': 'html',
+        '.css': 'css',
+        '.scss': 'scss',
+        '.sass': 'sass',
+        '.less': 'less',
+        '.json': 'json',
+        '.xml': 'xml',
+        '.md': 'markdown',
+        '.yml': 'yaml',
+        '.yaml': 'yaml',
+        '.txt': 'plaintext',
+        '.log': 'plaintext',
+        '.php': 'php',
+        '.rb': 'ruby',
+        '.go': 'go',
+        '.rs': 'rust',
+        '.sh': 'shellscript',
+        '.bash': 'shellscript',
+        '.zsh': 'shellscript',
+        '.ps1': 'powershell',
+        '.sql': 'sql',
+        '.r': 'r',
+        '.R': 'r'
+    };
+
+    return languageMap[ext] || 'plaintext';
 }

@@ -26,4 +26,12 @@ export const state = {
     copiedFiles: [] as CopiedFile[],
     folders: [] as Folder[],
     statusBarItem: undefined as vscode.StatusBarItem | undefined,
+    clipboardFiles: [] as ClipboardFile[],
+    isClipboardDetectionEnabled: true,
 };
+
+export interface ClipboardFile {
+    filePath: string;
+    content: string;
+    detectedAt: number;
+}
