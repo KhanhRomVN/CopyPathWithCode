@@ -19,3 +19,9 @@ export const state = {
     folders: [] as Folder[],
     statusBarItem: undefined as vscode.StatusBarItem | undefined,
 };
+
+export interface ErrorInfo {
+    message: string;
+    line: number;
+    content: string;
+}

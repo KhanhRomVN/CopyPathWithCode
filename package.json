@@ -2,7 +2,7 @@
   "name": "copy-path-with-code",
   "displayName": "Copy Path with Code",
   "description": "Copy file path along with its content",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "khanhromvn",
   "license": "MIT",
   "repository": {
@@ -32,6 +32,10 @@
   {
     "command": "copy-path-with-code.copyPathWithContent",
     "title": "Copy Path and Content"
+  },
+  {
+    "command": "copy-path-with-code.copyPathWithContentAndError",
+    "title": "Copy Path and Content with Error"
   },
   {
     "command": "copy-path-with-code.clearClipboard",
@@ -76,14 +80,20 @@
         "when": "editorTextFocus"
       },
       {
+        "command": "copy-path-with-code.copyPathWithContentAndError",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a",
+        "when": "editorTextFocus"
+      },
+      {
         "command": "copy-path-with-code.clearClipboard",
         "key": "ctrl+alt+z",
         "mac": "cmd+alt+z"
       },
       {
         "command": "copy-path-with-code.addFileToFolder",
-        "key": "ctrl+alt+a",
-        "mac": "cmd+alt+a"
+        "key": "ctrl+alt+shift+a",
+        "mac": "cmd+alt+shift+a"
       },
       {
         "command": "copy-path-with-code.removeFileFromFolder",
