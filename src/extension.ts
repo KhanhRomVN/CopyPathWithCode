@@ -6,6 +6,9 @@ import { registerAllCommands } from './commands';
 import { ClipboardDetector } from './utils/clipboardDetector';
 import { ClipboardTreeDataProvider } from './providers/clipboardTreeDataProvider';
 import { Logger } from './utils/logger';
+import { checkClipboardIntegrity } from './utils/clipboardUtils';
+
+let clipboardMonitoringInterval: NodeJS.Timeout | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     // Initialize logger
@@ -15,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
     loadFolders(context);
     Logger.debug(`Loaded ${state.folders.length} folders from storage`);
 
-    // initialize status bar item for copy count
+    // Initialize status bar item for copy count
     state.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     state.statusBarItem.hide();
     context.subscriptions.push(state.statusBarItem);
@@ -57,6 +60,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Initial context update
     vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', state.clipboardFiles.length > 0);
 
+    // Start clipboard integrity monitoring
+    startClipboardMonitoring();
+
     // Pass instance of treeDataProvider to register commands
     registerAllCommands(context, treeDataProvider, clipboardTreeDataProvider);
     Logger.info('All commands registered');
@@ -65,14 +71,40 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({
         dispose: () => {
             clipboardDetector.dispose();
+            if (clipboardMonitoringInterval) {
+                clearInterval(clipboardMonitoringInterval);
+                clipboardMonitoringInterval = undefined;
+            }
             Logger.info('Extension deactivated');
         }
     });
+}
+
+function startClipboardMonitoring() {
+    // Monitor clipboard integrity every 2 seconds
+    clipboardMonitoringInterval = setInterval(async () => {
+        if (state.copiedFiles.length > 0) {
+            try {
+                await checkClipboardIntegrity();
+            } catch (error) {
+                Logger.error('Error during clipboard monitoring', error);
+            }
+        }
+    }, 2000);
+
+    Logger.debug('Clipboard monitoring started');
 }
 
 export function deactivate() {
     state.copiedFiles.length = 0;
     state.folders.length = 0;
     state.clipboardFiles.length = 0;
+    state.tempClipboard.length = 0;
+
+    if (clipboardMonitoringInterval) {
+        clearInterval(clipboardMonitoringInterval);
+        clipboardMonitoringInterval = undefined;
+    }
+
     Logger.dispose();
 }

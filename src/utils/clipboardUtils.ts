@@ -3,6 +3,9 @@ import * as path from 'path';
 import { state, Folder, CopiedFile, ErrorInfo } from '../models/models';
 import { Logger } from './logger';
 
+// Signature for tracking extension content
+const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';
+
 export async function copyPathWithContent() {
     try {
         const editor = vscode.window.activeTextEditor;
@@ -40,11 +43,9 @@ export async function copyPathWithContent() {
         // Format content for normal copy
         const formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
 
-        // Remove any existing file with same basePath and format
+        // Remove any existing file with same basePath (regardless of format)
         const beforeCount = state.copiedFiles.length;
-        state.copiedFiles = state.copiedFiles.filter(f =>
-            !(f.basePath === basePath && f.format === 'normal')
-        );
+        state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
         const afterCount = state.copiedFiles.length;
 
         if (beforeCount !== afterCount) {
@@ -58,20 +59,13 @@ export async function copyPathWithContent() {
             format: 'normal'
         });
 
-        const combined = state.copiedFiles
-            .map(f => f.content)
-            .join('\n\n---\n\n');
+        await updateClipboardWithSignature();
 
-        await vscode.env.clipboard.writeText(combined);
         const count = state.copiedFiles.length;
-
         Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
         vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
 
-        if (state.statusBarItem) {
-            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
-            state.statusBarItem.show();
-        }
+        updateStatusBar();
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
         Logger.error('Failed to copy content', err);
@@ -116,15 +110,12 @@ export async function copyPathWithContentAndError() {
         // Get errors and warnings from Problems panel for this document
         const diagnostics = vscode.languages.getDiagnostics(document.uri);
         const errors: ErrorInfo[] = [];
-        let errorCounter = 1; // Counter for proper numbering
+        let errorCounter = 1;
 
         Logger.debug(`Found ${diagnostics.length} diagnostics for document`);
 
         diagnostics.forEach(diagnostic => {
-            // Only include errors (red) and warnings (yellow)
-            // Severity: 0=Error, 1=Warning, 2=Information, 3=Hint
             if (diagnostic.severity <= 1) {
-                // Check if diagnostic is within selection or applies to entire file
                 if (selection.isEmpty || diagnostic.range.intersection(selection)) {
                     const line = diagnostic.range.start.line;
                     errors.push({
@@ -142,28 +133,22 @@ export async function copyPathWithContentAndError() {
 
         let formattedContent: string;
         if (errors.length > 0) {
-            // Format with error information - use proper numbering
             const errorString = errors.map(err =>
                 `${err.index}. ${err.message} | ${err.line} | ${err.content}`
             ).join('\n');
 
-            formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\`\n${errorString}`;
-            Logger.debug(`Formatted content with ${errors.length} error entries`);
+            formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\n${errorString}\n\`\`\``;
         } else {
-            // Regular format if no errors found
             formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
-            Logger.debug('No errors found, using regular format');
         }
 
-        // Remove any existing file with same basePath and format
+        // Remove any existing file with same basePath (regardless of format)
         const beforeCount = state.copiedFiles.length;
-        state.copiedFiles = state.copiedFiles.filter(f =>
-            !(f.basePath === basePath && f.format === 'error')
-        );
+        state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
         const afterCount = state.copiedFiles.length;
 
         if (beforeCount !== afterCount) {
-            Logger.debug(`Removed existing error format entry for ${basePath}`);
+            Logger.debug(`Removed existing file entry for ${basePath}`);
         }
 
         state.copiedFiles.push({
@@ -173,11 +158,8 @@ export async function copyPathWithContentAndError() {
             format: 'error'
         });
 
-        const combined = state.copiedFiles
-            .map(f => f.content)
-            .join('\n\n---\n\n');
+        await updateClipboardWithSignature();
 
-        await vscode.env.clipboard.writeText(combined);
         const count = state.copiedFiles.length;
         const errorCount = errors.length;
 
@@ -186,14 +168,29 @@ export async function copyPathWithContentAndError() {
             `Copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to clipboard`
         );
 
-        if (state.statusBarItem) {
-            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} (${errorCount} error${errorCount !== 1 ? 's' : ''})`;
-            state.statusBarItem.show();
-        }
+        updateStatusBar();
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
         Logger.error('Failed to copy with error info', err);
         vscode.window.showErrorMessage(`Failed to copy with error info: ${msg}`);
+    }
+}
+
+async function updateClipboardWithSignature() {
+    const combined = state.copiedFiles
+        .map(f => f.content)
+        .join('\n\n---\n\n');
+
+    const finalContent = combined + '\n' + TRACKING_SIGNATURE;
+    await vscode.env.clipboard.writeText(finalContent);
+}
+
+function updateStatusBar() {
+    if (state.statusBarItem) {
+        const count = state.copiedFiles.length;
+        const tempText = state.tempClipboard.length > 0 ? ` | Temp: ${state.tempClipboard.length}` : '';
+        state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
+        state.statusBarItem.show();
     }
 }
 
@@ -211,8 +208,14 @@ export async function clearClipboard() {
         vscode.window.showInformationMessage('Clipboard cleared');
 
         if (state.statusBarItem) {
-            state.statusBarItem.hide();
-            Logger.debug('Status bar item hidden');
+            if (state.tempClipboard.length > 0) {
+                const tempText = `$(archive) Temp: ${state.tempClipboard.length} file${state.tempClipboard.length > 1 ? 's' : ''}`;
+                state.statusBarItem.text = tempText;
+                state.statusBarItem.show();
+            } else {
+                state.statusBarItem.hide();
+            }
+            Logger.debug('Status bar updated after clear');
         }
 
         // Refresh the clipboard view
@@ -262,19 +265,45 @@ export async function copyFolderContents(folder: Folder) {
     }
 
     try {
-        const combined = toCopy.map(f => f.content).join('\n\n---\n\n');
-        await vscode.env.clipboard.writeText(combined);
+        // Replace current copied files with folder contents
+        state.copiedFiles = toCopy;
+        await updateClipboardWithSignature();
 
         Logger.info(`Successfully copied ${toCopy.length} files from folder "${folder.name}"`);
         vscode.window.showInformationMessage(`Copied ${toCopy.length} files from "${folder.name}"`);
 
-        if (state.statusBarItem) {
-            state.statusBarItem.text = `$(clippy) ${toCopy.length} file${toCopy.length > 1 ? 's' : ''} copied`;
-            state.statusBarItem.show();
-        }
+        updateStatusBar();
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
         Logger.error(`Failed to copy folder contents for "${folder.name}"`, err);
         vscode.window.showErrorMessage(`Failed to copy folder contents: ${msg}`);
     }
 }
+
+// Function to check if clipboard content has our signature
+export async function checkClipboardIntegrity(): Promise<boolean> {
+    try {
+        const clipboardText = await vscode.env.clipboard.readText();
+        const hasSignature = clipboardText.endsWith(TRACKING_SIGNATURE);
+
+        if (!hasSignature && state.copiedFiles.length > 0) {
+            // Content was modified externally, clear our tracking
+            Logger.info('Clipboard content modified externally, clearing file tracking');
+            state.copiedFiles = [];
+            updateStatusBar();
+            return false;
+        }
+
+        return hasSignature;
+    } catch (error) {
+        Logger.error('Failed to check clipboard integrity', error);
+        return false;
+    }
+}
+
+// Function to validate save to temp operation
+export function canSaveToTemp(): boolean {
+    return state.copiedFiles.length > 0;
+}
+
+export { TRACKING_SIGNATURE };
