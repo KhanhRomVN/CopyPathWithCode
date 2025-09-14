@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state } from '../models/models';
+import { Logger } from '../utils/logger';
 
 interface TreeNode {
     name: string;
@@ -26,7 +27,12 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         selectedFiles: new Set()
     };
 
+    // Thêm cache cho cây thư mục
+    private treeCache: Map<string, vscode.TreeItem[]> = new Map();
+
     refresh(): void {
+        // Clear cache khi refresh
+        this.treeCache.clear();
         this._onDidChange.fire(undefined);
     }
 
@@ -88,53 +94,121 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
     }
 
     getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
+        Logger.debug('=== getChildren called ===');
+        Logger.debug(`Element: ${element ? JSON.stringify({
+            label: element.label,
+            id: (element as any).id,
+            folderId: (element as any).folderId,
+            contextValue: element.contextValue,
+            isFileManagementHeader: (element as any).isFileManagementHeader
+        }) : 'ROOT'}`);
+
         if (!element) {
-            // Root level behavior depends on current mode
+            // Root level behavior
+            Logger.debug(`File management mode: ${this.fileManagementState.mode}`);
             if (this.fileManagementState.mode !== 'normal') {
                 return this.getFileManagementRootItems();
             }
-
-            // Normal mode: show all folders
             return Promise.resolve(this.getFolderItems());
         }
 
-        // Handle file management mode tree navigation
+        const elementAny = element as any;
+
+        // File management mode navigation
         if (this.fileManagementState.mode !== 'normal') {
-            if ((element as any).isFileManagementHeader) {
+            if (elementAny.isFileManagementHeader) {
+                Logger.debug('Getting file management files');
                 return this.getFileManagementFiles();
             }
-
-            // Check if this is a directory node in file management mode
-            if ((element as any).treeNode) {
-                const treeNode = (element as any).treeNode as TreeNode;
+            if (elementAny.treeNode) {
+                const treeNode = elementAny.treeNode as TreeNode;
+                Logger.debug(`Expanding file management tree node: ${treeNode.name}`);
                 return Promise.resolve(this.convertFileTreeToItems(Array.from(treeNode.children.values())));
             }
-
+            Logger.debug('No matching file management condition');
             return Promise.resolve([]);
         }
 
-        // Normal mode navigation
-        if ((element as any).folderId) {
-            const folderId = (element as any).folderId;
+        // Handle directory expansion FIRST (must come before folderId check)
+        if (elementAny.treeNode && elementAny.folderId) {
+            const treeNode = elementAny.treeNode as TreeNode;
+            const folder = state.folders.find(f => f.id === elementAny.folderId);
+
+            if (!folder) {
+                Logger.error(`Folder not found for directory expansion: ${elementAny.folderId}`);
+                return Promise.resolve([]);
+            }
+
+            Logger.debug(`=== EXPANDING DIRECTORY: ${treeNode.name} ===`);
+            Logger.debug(`Directory path: ${treeNode.path}`);
+            Logger.debug(`Children count: ${treeNode.children.size}`);
+            Logger.debug(`Children names: [${Array.from(treeNode.children.keys()).join(', ')}]`);
+
+            const items = this.convertTreeToItems(Array.from(treeNode.children.values()), folder);
+            Logger.debug(`Converted directory to ${items.length} items`);
+
+            // Lưu vào cache
+            const cacheKey = `${elementAny.folderId}-${treeNode.path}`;
+            this.treeCache.set(cacheKey, items);
+
+            return Promise.resolve(items);
+        }
+
+        // Normal mode - folder root expansion
+        const folderId = elementAny.folderId || elementAny.id;
+        Logger.debug(`Normal mode - folderId: ${folderId}`);
+
+        if (folderId) {
+            // Tạo key cache dựa trên folderId
+            const cacheKey = `${folderId}-`;
+
+            // Kiểm tra cache trước
+            if (this.treeCache.has(cacheKey)) {
+                Logger.debug(`Returning cached results for: ${cacheKey}`);
+                return Promise.resolve(this.treeCache.get(cacheKey)!);
+            }
+
             const folder = state.folders.find(f => f.id === folderId);
             if (!folder) {
+                Logger.error(`Folder not found for ID: ${folderId}`);
                 return Promise.resolve([]);
             }
 
-            const tree = this.buildFileTree(folder.files);
-            return Promise.resolve(this.convertTreeToItems(tree, folder));
-        }
+            Logger.info(`=== EXPANDING FOLDER: ${folder.name} ===`);
+            Logger.info(`Folder ID: ${folder.id}`);
+            Logger.info(`Files count: ${folder.files.length}`);
+            Logger.info(`Files: ${JSON.stringify(folder.files, null, 2)}`);
 
-        if ((element as any).treeNode) {
-            const treeNode = (element as any).treeNode as TreeNode;
-            const folder = state.folders.find(f => f.id === (element as any).folderId);
-            if (!folder) {
-                return Promise.resolve([]);
+            // FIXED: Add validation before building tree
+            const validFiles = folder.files.filter(fileUri => {
+                try {
+                    const uri = vscode.Uri.parse(fileUri);
+                    Logger.debug(`Validating file URI: ${fileUri} -> scheme: ${uri.scheme}, fsPath: ${uri.fsPath}`);
+                    return uri.scheme === 'file';
+                } catch (error) {
+                    Logger.warn(`Invalid file URI in folder: ${fileUri}`, error);
+                    return false;
+                }
+            });
+
+            if (validFiles.length !== folder.files.length) {
+                Logger.info(`Filtered ${folder.files.length - validFiles.length} invalid files from folder`);
             }
 
-            return Promise.resolve(this.convertTreeToItems(Array.from(treeNode.children.values()), folder));
+            Logger.info(`=== BUILDING TREE FROM ${validFiles.length} VALID FILES ===`);
+            const tree = this.buildFileTree(validFiles);
+            Logger.info(`=== TREE BUILT WITH ${tree.length} ROOT NODES ===`);
+
+            const items = this.convertTreeToItems(tree, folder);
+            Logger.info(`=== CONVERTED TO ${items.length} TREE ITEMS ===`);
+
+            // Lưu vào cache
+            this.treeCache.set(cacheKey, items);
+
+            return Promise.resolve(items);
         }
 
+        Logger.debug('No matching condition in getChildren, returning empty array');
         return Promise.resolve([]);
     }
 
@@ -318,14 +392,18 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
     }
 
     private getFolderItems(): vscode.TreeItem[] {
+        Logger.debug(`Getting folder items for ${state.folders.length} folders`);
+
         return state.folders.map(folder => {
             const treeItem = new vscode.TreeItem(
                 folder.name,
                 vscode.TreeItemCollapsibleState.Collapsed
             );
+
+            // FIX: Make sure both id and folderId are set properly
             treeItem.id = folder.id;
-            treeItem.contextValue = 'folder';
             (treeItem as any).folderId = folder.id;
+            treeItem.contextValue = 'folder';
 
             const isCurrentWorkspace = this.isFolderInCurrentWorkspace(folder);
 
@@ -354,62 +432,141 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                 );
             }
 
+            Logger.debug(`Created folder item: ${folder.name} with ID: ${folder.id}`);
             return treeItem;
         });
     }
 
     private buildFileTree(fileUris: string[]): TreeNode[] {
-        const root = new Map<string, TreeNode>();
-        const commonBasePath = this.findCommonBasePath(fileUris);
+        if (!fileUris || fileUris.length === 0) {
+            Logger.info('No files to build tree from');
+            return [];
+        }
 
-        for (const uriStr of fileUris) {
+        Logger.info(`=== BUILDING FILE TREE FROM ${fileUris.length} FILES ===`);
+
+        const root = new Map<string, TreeNode>();
+        const processedPaths = new Set<string>(); // Prevent duplicates
+
+        for (let i = 0; i < fileUris.length; i++) {
+            const uriStr = fileUris[i];
+            Logger.debug(`\n--- Processing file ${i + 1}/${fileUris.length}: ${uriStr} ---`);
+
             try {
+                // FIXED: Validate URI scheme before processing
                 const uri = vscode.Uri.parse(uriStr);
+                Logger.debug(`Parsed URI - scheme: ${uri.scheme}, fsPath: ${uri.fsPath}`);
+
+                if (uri.scheme !== 'file') {
+                    Logger.warn(`Skipping non-file URI: ${uriStr} (scheme: ${uri.scheme})`);
+                    continue;
+                }
+
                 let relativePath: string;
 
                 if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                    const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                    Logger.debug(`Workspace root: ${workspaceRoot}`);
+                    Logger.debug(`File fsPath: ${uri.fsPath}`);
+
                     relativePath = vscode.workspace.asRelativePath(uri);
+                    Logger.debug(`Calculated relative path: ${relativePath}`);
                 } else {
-                    relativePath = path.relative(commonBasePath, uri.fsPath);
+                    relativePath = path.basename(uri.fsPath);
+                    Logger.debug(`No workspace, using basename: ${relativePath}`);
                 }
 
-                relativePath = relativePath.replace(/\\/g, '/');
+                // FIXED: Better path normalization
+                const originalRelativePath = relativePath;
+                relativePath = relativePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                Logger.debug(`Normalized path: ${originalRelativePath} -> ${relativePath}`);
+
+                // FIXED: Skip duplicates and invalid paths
+                if (!relativePath || relativePath === '.' || processedPaths.has(relativePath)) {
+                    Logger.debug(`Skipping invalid/duplicate path: "${relativePath}"`);
+                    continue;
+                }
+
+                processedPaths.add(relativePath);
+                Logger.debug(`Added to processed paths. Total processed: ${processedPaths.size}`);
+
+                Logger.debug(`BEFORE insertIntoTree - root keys: [${Array.from(root.keys()).join(', ')}]`);
                 this.insertIntoTree(root, relativePath, uri);
+                Logger.debug(`AFTER insertIntoTree - root keys: [${Array.from(root.keys()).join(', ')}]`);
+
             } catch (error) {
-                console.error('Error processing file URI:', uriStr, error);
+                Logger.error(`Error processing file URI: ${uriStr}`, error);
             }
         }
 
-        return Array.from(root.values());
+        const result = Array.from(root.values());
+        Logger.info(`=== FINAL TREE STRUCTURE ===`);
+        Logger.info(`Root nodes count: ${result.length}`);
+        Logger.info(`Root node names: [${result.map(n => n.name).join(', ')}]`);
+
+        // Log detailed tree structure
+        result.forEach((node, index) => {
+            Logger.info(`Root node ${index + 1}: ${this.debugNodeStructure(node, 0)}`);
+        });
+
+        return result;
     }
 
-    private findCommonBasePath(fileUris: string[]): string {
-        if (fileUris.length === 0) return '';
-        if (fileUris.length === 1) {
-            return path.dirname(vscode.Uri.parse(fileUris[0]).fsPath);
-        }
+    private debugNodeStructure(node: TreeNode, depth: number): string {
+        const indent = '  '.repeat(depth);
+        let result = `\n${indent}${node.name} (${node.isFile ? 'FILE' : 'DIR'}) - path: "${node.path}"`;
 
-        const paths = fileUris.map(uri => vscode.Uri.parse(uri).fsPath);
-        let commonPath = path.dirname(paths[0]);
-
-        for (let i = 1; i < paths.length; i++) {
-            while (!paths[i].startsWith(commonPath + path.sep) && commonPath !== path.dirname(commonPath)) {
-                commonPath = path.dirname(commonPath);
+        if (node.children.size > 0) {
+            result += ` - children: ${node.children.size}`;
+            for (const child of node.children.values()) {
+                result += this.debugNodeStructure(child, depth + 1);
             }
         }
 
-        return commonPath;
+        return result;
     }
 
     private insertIntoTree(tree: Map<string, TreeNode>, filePath: string, uri: vscode.Uri) {
-        const parts = filePath.split('/').filter(part => part.length > 0);
+        Logger.debug(`\n=== INSERTING INTO TREE ===`);
+        Logger.debug(`File path: ${filePath}`);
+        Logger.debug(`URI: ${uri.toString()}`);
+
+        // FIXED: Better path validation and splitting
+        const originalParts = filePath.split('/');
+        Logger.debug(`Original parts: [${originalParts.join(', ')}]`);
+
+        const parts = originalParts.filter(part =>
+            part.length > 0 &&
+            part !== '.' &&
+            part !== '..' &&
+            !part.includes(':') // Exclude parts with colons (like "output:tasks")
+        );
+
+        Logger.debug(`Filtered parts: [${parts.join(', ')}]`);
+
+        if (parts.length === 0) {
+            Logger.warn(`Skipping file with no valid parts: ${filePath}`);
+            return;
+        }
+
         let currentLevel = tree;
         let currentPath = '';
+
+        Logger.debug(`Starting tree traversal...`);
 
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
             const isFile = i === parts.length - 1;
+            const previousPath = currentPath;
             currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+            Logger.debug(`\n  Step ${i + 1}/${parts.length}:`);
+            Logger.debug(`    Part: "${part}"`);
+            Logger.debug(`    Is file: ${isFile}`);
+            Logger.debug(`    Previous path: "${previousPath}"`);
+            Logger.debug(`    Current path: "${currentPath}"`);
+            Logger.debug(`    Current level keys: [${Array.from(currentLevel.keys()).join(', ')}]`);
+            Logger.debug(`    Has part in current level: ${currentLevel.has(part)}`);
 
             if (!currentLevel.has(part)) {
                 const node: TreeNode = {
@@ -420,15 +577,51 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                     uri: isFile ? uri : undefined
                 };
                 currentLevel.set(part, node);
+                Logger.debug(`    CREATED NEW NODE: ${isFile ? 'file' : 'directory'} "${part}" at path "${currentPath}"`);
+            } else {
+                // Handle existing nodes more carefully
+                const existingNode = currentLevel.get(part)!;
+                Logger.debug(`    FOUND EXISTING NODE: ${existingNode.isFile ? 'file' : 'directory'} "${part}"`);
+
+                if (isFile) {
+                    if (!existingNode.isFile) {
+                        // FIXED: Don't convert directory to file - this causes issues
+                        Logger.warn(`    File "${part}" conflicts with existing directory - keeping as directory`);
+                    } else {
+                        // Update existing file node
+                        existingNode.uri = uri;
+                        existingNode.path = currentPath; // Ensure path is consistent
+                        Logger.debug(`    UPDATED existing file node`);
+                    }
+                } else {
+                    // Directory case - ensure it's marked as directory
+                    if (existingNode.isFile) {
+                        // FIXED: More careful conversion
+                        Logger.warn(`    Converting file "${part}" to directory`);
+                        existingNode.isFile = false;
+                        existingNode.uri = undefined;
+                    } else {
+                        Logger.debug(`    Existing directory node confirmed`);
+                    }
+                }
             }
 
             if (!isFile) {
                 currentLevel = currentLevel.get(part)!.children;
+                Logger.debug(`    MOVED TO NEXT LEVEL: children of "${part}"`);
+            } else {
+                Logger.debug(`    FINISHED - reached file node`);
             }
         }
+
+        Logger.debug(`=== FINISHED INSERTING ${filePath} ===`);
     }
 
     private convertTreeToItems(nodes: TreeNode[], folder: any): vscode.TreeItem[] {
+        Logger.debug(`\n=== CONVERTING TREE TO ITEMS ===`);
+        Logger.debug(`Converting ${nodes.length} tree nodes to items for folder ${folder.name}`);
+        Logger.debug(`Input nodes: [${nodes.map(n => `${n.name}(${n.isFile ? 'FILE' : 'DIR'})`).join(', ')}]`);
+
         const items: vscode.TreeItem[] = [];
         const sortedNodes = nodes.sort((a, b) => {
             if (a.isFile !== b.isFile) {
@@ -437,7 +630,16 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             return a.name.localeCompare(b.name);
         });
 
-        for (const node of sortedNodes) {
+        Logger.debug(`Sorted nodes: [${sortedNodes.map(n => `${n.name}(${n.isFile ? 'FILE' : 'DIR'})`).join(', ')}]`);
+
+        for (let i = 0; i < sortedNodes.length; i++) {
+            const node = sortedNodes[i];
+            Logger.debug(`\n  Converting node ${i + 1}/${sortedNodes.length}: "${node.name}"`);
+            Logger.debug(`    Path: "${node.path}"`);
+            Logger.debug(`    Is file: ${node.isFile}`);
+            Logger.debug(`    Children count: ${node.children.size}`);
+            Logger.debug(`    URI: ${node.uri?.toString() || 'undefined'}`);
+
             const item = new vscode.TreeItem(
                 node.name,
                 node.isFile
@@ -445,8 +647,17 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                     : vscode.TreeItemCollapsibleState.Collapsed
             );
 
+            // Thêm ID ổn định cho TreeItem
+            item.id = `${folder.id}-${node.path}`;
+
+            // FIX: Ensure both treeNode and folderId are set properly
             (item as any).treeNode = node;
             (item as any).folderId = folder.id;
+
+            Logger.debug(`    Created TreeItem with label: "${item.label}"`);
+            Logger.debug(`    TreeItem ID: ${item.id}`);
+            Logger.debug(`    TreeItem folderId: ${(item as any).folderId}`);
+            Logger.debug(`    TreeItem collapsible state: ${item.collapsibleState}`);
 
             if (node.isFile && node.uri) {
                 // IMPORTANT: Set resourceUri for automatic icon detection
@@ -467,6 +678,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                 item.tooltip = new vscode.MarkdownString(
                     `**${node.name}**\n\nPath: ${node.path}`
                 );
+                Logger.debug(`    Configured as FILE item`);
             } else {
                 item.iconPath = new vscode.ThemeIcon('folder');
                 item.contextValue = 'directory';
@@ -479,10 +691,17 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                 if (fileCount > 0) {
                     item.description = `${fileCount} file${fileCount > 1 ? 's' : ''}`;
                 }
+                Logger.debug(`    Configured as DIRECTORY item with ${fileCount} files`);
             }
 
             items.push(item);
         }
+
+        Logger.debug(`\n=== CONVERSION COMPLETE ===`);
+        Logger.debug(`Created ${items.length} items:`);
+        items.forEach((item, index) => {
+            Logger.debug(`  Item ${index + 1}: "${item.label}" (${item.contextValue}) - collapsible: ${item.collapsibleState}, ID: ${item.id}`);
+        });
 
         return items;
     }

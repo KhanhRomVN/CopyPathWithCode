@@ -84,7 +84,26 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
     const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', placeHolder: 'My Code Folder' });
     if (!name) { return; }
 
-    const openFiles = vscode.window.visibleTextEditors.map(e => e.document.uri.toString());
+    // FIXED: Filter out non-file schemes like "output:", "debug:", etc.
+    const fileEditors = vscode.window.visibleTextEditors.filter(editor => {
+        return editor.document.uri.scheme === 'file';
+    });
+
+    Logger.info(`Found ${fileEditors.length} file editors (filtered out ${vscode.window.visibleTextEditors.length - fileEditors.length} non-file editors)`);
+
+    // Give user choice instead of auto-adding all files
+    const options = [
+        'Create empty folder',
+        `Add ${fileEditors.length} open file${fileEditors.length !== 1 ? 's' : ''}`,
+    ];
+
+    const choice = await vscode.window.showQuickPick(options, {
+        placeHolder: 'Include files in folder?'
+    });
+
+    if (!choice) { return; }
+
+    const openFiles = choice === options[1] ? fileEditors.map(e => e.document.uri.toString()) : [];
 
     // Store current workspace information
     const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
