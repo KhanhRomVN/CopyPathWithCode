@@ -1,7 +1,9 @@
+// src/commands/index.ts
 import * as vscode from 'vscode';
 import { registerCoreCommands } from './coreCommands';
 import { registerFolderCommands } from './folderCommands';
 import { registerDirectoryCommands } from './directoryCommands';
+import { registerContextMenuCommands } from './contextMenuCommands';
 import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
 import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvider';
 import { registerTempClipboardCommands } from './tempClipboardCommands';
@@ -15,4 +17,5 @@ export function registerAllCommands(
     registerFolderCommands(context, treeDataProvider, clipboardTreeDataProvider);
     registerDirectoryCommands(context, treeDataProvider);
     registerTempClipboardCommands(context);
+    registerContextMenuCommands(context);
 }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state, Folder, ClipboardFile } from '../models/models';
+import { state, Folder, ClipboardFile, CopiedFile } from '../models/models';
 import { saveFolders } from '../utils/folderUtils';
 import { copyFolderContents } from '../utils/clipboardUtils';
 import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
@@ -8,6 +8,9 @@ import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvide
 import { getFolderById } from '../utils/folderUtils';
 import { ClipboardDetector } from '../utils/clipboardDetector';
 import { Logger } from '../utils/logger';
+
+// Constants for clipboard signature
+const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';
 
 export function registerFolderCommands(
     context: vscode.ExtensionContext,
@@ -25,6 +28,9 @@ export function registerFolderCommands(
         vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder)),
+
+        // Individual file copy command - NEW
+        vscode.commands.registerCommand('copy-path-with-code.copyIndividualFile', (fileItem) => copyIndividualFile(fileItem)),
 
         // New inline file management commands
         vscode.commands.registerCommand('copy-path-with-code.toggleFileSelection', (filePath: string) => {
@@ -59,6 +65,99 @@ export function registerFolderCommands(
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
+}
+
+// NEW: Individual file copy function
+async function copyIndividualFile(fileItem?: any) {
+    try {
+        Logger.debug('Starting individual file copy', fileItem);
+
+        if (!fileItem || !fileItem.treeNode || !fileItem.treeNode.uri) {
+            Logger.error('Invalid file item for individual copy');
+            vscode.window.showErrorMessage('Invalid file selection for copying');
+            return;
+        }
+
+        const treeNode = fileItem.treeNode;
+        const uri = treeNode.uri as vscode.Uri;
+
+        Logger.debug(`Copying individual file: ${uri.toString()}`);
+
+        // Read the file content
+        const document = await vscode.workspace.openTextDocument(uri);
+        const content = document.getText();
+
+        // Calculate display path
+        let displayPath = uri.fsPath;
+        let basePath = uri.fsPath;
+
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            displayPath = vscode.workspace.asRelativePath(uri);
+            basePath = displayPath;
+        }
+
+        // Format content
+        const formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
+
+        // Remove any existing file with same basePath
+        const beforeCount = state.copiedFiles.length;
+        state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
+        const afterCount = state.copiedFiles.length;
+
+        if (beforeCount !== afterCount) {
+            Logger.debug(`Removed existing file entry for ${basePath}`);
+        }
+
+        // Add the new file
+        const copiedFile: CopiedFile = {
+            displayPath,
+            basePath,
+            content: formattedContent,
+            format: 'normal'
+        };
+
+        state.copiedFiles.push(copiedFile);
+
+        // Update clipboard with signature
+        await updateClipboardWithSignature();
+
+        const totalCount = state.copiedFiles.length;
+        Logger.info(`Successfully copied file ${displayPath} (${totalCount} total files)`);
+
+        // Show notification with file name instead of full path
+        const fileName = path.basename(displayPath);
+        vscode.window.showInformationMessage(
+            `Copied "${fileName}" to clipboard (${totalCount} file${totalCount > 1 ? 's' : ''} total)`
+        );
+
+        // Update status bar
+        updateStatusBar();
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        Logger.error('Failed to copy individual file', error);
+        vscode.window.showErrorMessage(`Failed to copy file: ${errorMessage}`);
+    }
+}
+
+// Helper function to update clipboard with signature
+async function updateClipboardWithSignature() {
+    const combined = state.copiedFiles
+        .map(f => f.content)
+        .join('\n\n---\n\n');
+
+    const finalContent = combined + '\n' + TRACKING_SIGNATURE;
+    await vscode.env.clipboard.writeText(finalContent);
+}
+
+// Helper function to update status bar
+function updateStatusBar() {
+    if (state.statusBarItem) {
+        const count = state.copiedFiles.length;
+        const tempText = state.tempClipboard.length > 0 ? ` | Temp: ${state.tempClipboard.length}` : '';
+        state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
+        state.statusBarItem.show();
+    }
 }
 
 /** Resolve input can be TreeItem (from TreeView) or Folder (model) -> return Folder from state */
