@@ -12,10 +12,11 @@ interface TreeNode {
     uri?: vscode.Uri;
 }
 
-export interface FileManagementState {
+interface FileManagementState {
     mode: 'normal' | 'add' | 'remove';
     folderId: string | null;
     selectedFiles: Set<string>;
+    selectedFolders: Set<string>;
 }
 
 export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
@@ -28,7 +29,8 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
     private fileManagementState: FileManagementState = {
         mode: 'normal',
         folderId: null,
-        selectedFiles: new Set()
+        selectedFiles: new Set(),
+        selectedFolders: new Set()
     };
 
     // Thêm cache cho cây thư mục
@@ -57,7 +59,8 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         this.fileManagementState = {
             mode,
             folderId,
-            selectedFiles: new Set()
+            selectedFiles: new Set(),
+            selectedFolders: new Set()
         };
 
         // If in 'add' mode, pre-select existing files
@@ -80,7 +83,8 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         this.fileManagementState = {
             mode: 'normal',
             folderId: null,
-            selectedFiles: new Set()
+            selectedFiles: new Set(),
+            selectedFolders: new Set()
         };
         this.refresh();
     }
@@ -93,6 +97,33 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             this.fileManagementState.selectedFiles.add(filePath);
         }
         this.refresh();
+    }
+
+    // Add this method to handle folder selection
+    toggleFolderSelection(folderPath: string) {
+        if (this.fileManagementState.selectedFolders.has(folderPath)) {
+            this.fileManagementState.selectedFolders.delete(folderPath);
+        } else {
+            this.fileManagementState.selectedFolders.add(folderPath);
+        }
+        this.refresh();
+    }
+
+    // Add this method to select all files in a folder
+    selectAllFilesInFolder(folderPath: string) {
+        const allFiles = this.getAllFilesInFolder(folderPath);
+        allFiles.forEach(filePath => {
+            this.fileManagementState.selectedFiles.add(filePath);
+        });
+        this.refresh();
+    }
+
+    // Helper method to get all files in a folder
+    private getAllFilesInFolder(folderPath: string): string[] {
+        const files: string[] = [];
+        // You'll need to implement this based on your tree structure
+        // This should recursively get all file paths under the given folder
+        return files;
     }
 
     // Method to get current selection
@@ -499,15 +530,13 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             if (node.isFile && node.uri) {
                 const isSelected = this.fileManagementState.selectedFiles.has(node.path);
 
-                // Show selection status in description
                 if (isSelected) {
                     item.description = '✓ Selected';
+                    item.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
+                } else {
+                    item.resourceUri = node.uri;
                 }
 
-                // IMPORTANT: Set resourceUri for automatic icon detection
-                item.resourceUri = node.uri;
-
-                // Don't set iconPath - let VS Code handle it automatically
                 item.contextValue = 'fileManagementFile';
                 item.command = {
                     command: 'copy-path-with-code.toggleFileSelection',
@@ -519,20 +548,19 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                     `**${node.name}**\n\nPath: ${node.path}\nClick to ${isSelected ? 'deselect' : 'select'}`
                 );
             } else {
-                // Use folder icon for directories in file management mode
+                // For directories in file management mode - REMOVE the command to prevent selection on click
                 item.iconPath = new vscode.ThemeIcon('folder');
-
-                item.contextValue = 'fileManagementDirectory';
+                item.contextValue = 'fileManagementDirectory'; // Keep context value for right-click menu
 
                 const fileCount = this.countFilesInNode(node);
-
-                item.tooltip = new vscode.MarkdownString(
-                    `**${node.name}/**\n\nContains: ${fileCount} file(s)`
-                );
 
                 if (fileCount > 0) {
                     item.description = `${fileCount} file${fileCount > 1 ? 's' : ''}`;
                 }
+
+                item.tooltip = new vscode.MarkdownString(
+                    `**${node.name}/**\n\nContains: ${fileCount} file(s)\nRight-click for options`
+                );
             }
 
             items.push(item);

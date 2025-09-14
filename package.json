@@ -47,11 +47,6 @@
         "icon": "$(add)"
       },
       {
-        "command": "copy-path-with-code.showFolderMenu",
-        "title": "Folder Menu",
-        "icon": "$(kebab-vertical)"
-      },
-      {
         "command": "copy-path-with-code.addFileToFolder",
         "title": "Add Current File to Folder"
       },
@@ -206,6 +201,16 @@
         "command": "copy-path-with-code.toggleViewMode",
         "title": "Toggle View Mode",
         "icon": "$(eye)"
+      },
+      {
+        "command": "copy-path-with-code.selectAllFilesInFolder",
+        "title": "Select All Files in Folder",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.deselectAllFilesInFolder",
+        "title": "Deselect All Files in Folder",
+        "category": "Copy Path with Code"
       }
     ],
     "keybindings": [
@@ -280,16 +285,6 @@
     "menus": {
       "view/item/context": [
         {
-          "command": "copy-path-with-code.showFolderMenu",
-          "when": "view == folderManager && viewItem == folder",
-          "group": "inline"
-        },
-        {
-          "command": "copy-path-with-code.copyIndividualFile",
-          "when": "view == folderManager && viewItem == file",
-          "group": "inline"
-        },
-        {
           "command": "copy-path-with-code.openFile",
           "when": "view == folderManager && viewItem == file",
           "group": "navigation@1"
@@ -358,6 +353,18 @@
           "command": "copy-path-with-code.newFolder",
           "when": "view == folderManager && viewItem == directory",
           "group": "navigation@6"
+        },
+        {
+          "command": "copy-path-with-code.selectAllFilesInFolder",
+          "title": "Select All Files",
+          "when": "view == folderManager && viewItem == fileManagementDirectory",
+          "group": "inline"
+        },
+        {
+          "command": "copy-path-with-code.deselectAllFilesInFolder",
+          "title": "Deselect All Files",
+          "when": "view == folderManager && viewItem == fileManagementDirectory",
+          "group": "inline"
         }
       ],
       "view/title": [

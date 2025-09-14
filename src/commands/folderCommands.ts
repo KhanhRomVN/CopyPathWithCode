@@ -67,6 +67,10 @@ export function registerFolderCommands(
         // Add refresh command for folder tree
         vscode.commands.registerCommand('copy-path-with-code.refreshFolderView', () => {
             treeDataProvider.refresh();
+        }),
+
+        vscode.commands.registerCommand('copy-path-with-code.selectAllFilesInFolder', (item) => {
+            selectAllFilesInFolder(treeDataProvider, item);
         })
     ];
 
@@ -709,4 +713,34 @@ function getLanguageFromFileName(filePath: string): string {
     };
 
     return languageMap[ext] || 'plaintext';
+}
+
+async function selectAllFilesInFolder(treeDataProvider: FolderTreeDataProvider, item: any) {
+    if (!item || !item.treeNode) {
+        vscode.window.showErrorMessage('Could not select files: Invalid folder');
+        return;
+    }
+
+    const treeNode = item.treeNode;
+    const allFiles = getAllFilesFromNode(treeNode);
+
+    allFiles.forEach(filePath => {
+        treeDataProvider.toggleFileSelection(filePath);
+    });
+
+    vscode.window.showInformationMessage(`Selected ${allFiles.length} files in folder`);
+}
+
+function getAllFilesFromNode(node: any): string[] {
+    const files: string[] = [];
+
+    if (node.isFile) {
+        files.push(node.path);
+    } else {
+        for (const child of node.children.values()) {
+            files.push(...getAllFilesFromNode(child));
+        }
+    }
+
+    return files;
 }
