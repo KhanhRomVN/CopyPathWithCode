@@ -8,6 +8,7 @@ import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvide
 import { getFolderById } from '../utils/folderUtils';
 import { ClipboardDetector } from '../utils/clipboardDetector';
 import { Logger } from '../utils/logger';
+import { hasActiveWorkspace, getCurrentWorkspaceFolder, getFoldersForCurrentWorkspace } from '../utils/workspaceUtils';
 
 // Constants for clipboard signature
 const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';
@@ -29,7 +30,7 @@ export function registerFolderCommands(
         vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder)),
 
-        // Individual file copy command - NEW
+        // Individual file copy command
         vscode.commands.registerCommand('copy-path-with-code.copyIndividualFile', (fileItem) => copyIndividualFile(fileItem)),
 
         // New inline file management commands
@@ -62,12 +63,22 @@ export function registerFolderCommands(
         vscode.commands.registerCommand('copy-path-with-code.showLogs', () => {
             Logger.show();
         }),
+
+        // Add refresh command for folder tree
+        vscode.commands.registerCommand('copy-path-with-code.refreshFolderView', () => {
+            treeDataProvider.refresh();
+        }),
+
+        // Add global folder management command
+        vscode.commands.registerCommand('copy-path-with-code.openGlobalFolderManager', () => {
+            vscode.commands.executeCommand('workbench.view.extension.global-folder-manager');
+        }),
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
 }
 
-// NEW: Individual file copy function
+// Individual file copy function
 async function copyIndividualFile(fileItem?: any) {
     try {
         Logger.debug('Starting individual file copy', fileItem);
@@ -174,7 +185,21 @@ function resolveFolder(folderOrItem: any): Folder | undefined {
     return undefined;
 }
 
+// Updated createFolder function with workspace restrictions
 async function createFolder(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+    // Check if workspace is available
+    if (!hasActiveWorkspace()) {
+        vscode.window.showErrorMessage(
+            'Cannot create folders without an active workspace. Please open a folder or workspace first.',
+            'Open Folder'
+        ).then(selection => {
+            if (selection === 'Open Folder') {
+                vscode.commands.executeCommand('workbench.action.files.openFolder');
+            }
+        });
+        return;
+    }
+
     // Exit file management mode if active
     if (treeDataProvider.isInFileManagementMode()) {
         treeDataProvider.exitFileManagementMode();
@@ -187,14 +212,14 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
     });
     if (!name) { return; }
 
-    // FIXED: Filter out non-file schemes like "output:", "debug:", etc.
+    // Filter out non-file schemes
     const fileEditors = vscode.window.visibleTextEditors.filter(editor => {
         return editor.document.uri.scheme === 'file';
     });
 
-    Logger.info(`Found ${fileEditors.length} file editors (filtered out ${vscode.window.visibleTextEditors.length - fileEditors.length} non-file editors)`);
+    Logger.info(`Found ${fileEditors.length} file editors`);
 
-    // Give user choice instead of auto-adding all files with icons
+    // Give user choice
     const options = [
         {
             label: 'Create empty folder',
@@ -217,22 +242,25 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
 
     const openFiles = choice.label.includes('Add') ? fileEditors.map(e => e.document.uri.toString()) : [];
 
-    // Store current workspace information
-    const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
-    const workspaceFolder = currentWorkspace ? currentWorkspace.uri.fsPath : undefined;
+    // Store current workspace information (required now)
+    const currentWorkspace = getCurrentWorkspaceFolder();
+    if (!currentWorkspace) {
+        vscode.window.showErrorMessage('Failed to get current workspace information');
+        return;
+    }
 
     const folder: Folder = {
         id: Date.now().toString(),
         name,
         files: openFiles,
-        workspaceFolder
+        workspaceFolder: currentWorkspace
     };
 
     state.folders.push(folder);
     saveFolders(context);
     treeDataProvider.refresh();
 
-    const workspaceInfo = workspaceFolder ? ` in workspace "${path.basename(workspaceFolder)}"` : '';
+    const workspaceInfo = ` in workspace "${path.basename(currentWorkspace)}"`;
     vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files${workspaceInfo}`);
 }
 

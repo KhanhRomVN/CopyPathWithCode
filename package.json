@@ -96,6 +96,21 @@
         "category": "Copy Path with Code"
       },
       {
+        "command": "copy-path-with-code.refreshFolderView",
+        "title": "Refresh Folder View",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.openGlobalFolderManager",
+        "title": "Open Global Folder Manager",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.refreshGlobalFolderView",
+        "title": "Refresh Global Folder View",
+        "category": "Copy Path with Code"
+      },
+      {
         "command": "copy-path-with-code.showLogs",
         "title": "Show Extension Logs",
         "category": "Copy Path with Code"
@@ -248,6 +263,11 @@
           "id": "copy-path-with-code-folders",
           "title": "Code Folders",
           "icon": "$(folder-opened)"
+        },
+        {
+          "id": "global-folder-manager",
+          "title": "Global Folder Manager",
+          "icon": "$(folder-library)"
         }
       ]
     },
@@ -257,6 +277,13 @@
           "id": "folderManager",
           "name": "Code Folders",
           "contextualTitle": "Code Folders"
+        }
+      ],
+      "global-folder-manager": [
+        {
+          "id": "globalFolderManager",
+          "name": "All Workspaces",
+          "contextualTitle": "Global Folder Manager"
         }
       ],
       "explorer": [
@@ -348,12 +375,97 @@
           "command": "copy-path-with-code.newFolder",
           "when": "view == folderManager && viewItem == directory",
           "group": "navigation@6"
+        },
+        {
+          "command": "copy-path-with-code.showFolderMenu",
+          "when": "view == globalFolderManager && viewItem == folder",
+          "group": "inline"
+        },
+        {
+          "command": "copy-path-with-code.copyIndividualFile",
+          "when": "view == globalFolderManager && viewItem == file",
+          "group": "inline"
+        },
+        {
+          "command": "copy-path-with-code.openFile",
+          "when": "view == globalFolderManager && viewItem == file",
+          "group": "navigation@1"
+        },
+        {
+          "command": "copy-path-with-code.openToSide",
+          "when": "view == globalFolderManager && viewItem == file",
+          "group": "navigation@2"
+        },
+        {
+          "command": "copy-path-with-code.openWith",
+          "when": "view == globalFolderManager && viewItem == file",
+          "group": "navigation@3"
+        },
+        {
+          "command": "copy-path-with-code.cutFile",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "2_workspace@1"
+        },
+        {
+          "command": "copy-path-with-code.copyFile",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "2_workspace@2"
+        },
+        {
+          "command": "copy-path-with-code.pasteFile",
+          "when": "view == globalFolderManager && viewItem == directory",
+          "group": "2_workspace@3"
+        },
+        {
+          "command": "copy-path-with-code.copyPath",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "5_cutcopypaste@1"
+        },
+        {
+          "command": "copy-path-with-code.copyRelativePath",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "5_cutcopypaste@2"
+        },
+        {
+          "command": "copy-path-with-code.revealInFileExplorer",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "7_modification@1"
+        },
+        {
+          "command": "copy-path-with-code.revealInExplorer",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "7_modification@2"
+        },
+        {
+          "command": "copy-path-with-code.renameFile",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "7_modification@3"
+        },
+        {
+          "command": "copy-path-with-code.deleteFile",
+          "when": "view == globalFolderManager && (viewItem == file || viewItem == directory)",
+          "group": "7_modification@4"
+        },
+        {
+          "command": "copy-path-with-code.newFile",
+          "when": "view == globalFolderManager && viewItem == directory",
+          "group": "navigation@5"
+        },
+        {
+          "command": "copy-path-with-code.newFolder",
+          "when": "view == globalFolderManager && viewItem == directory",
+          "group": "navigation@6"
         }
       ],
       "view/title": [
         {
           "command": "copy-path-with-code.createFolder",
           "when": "view == folderManager",
+          "group": "navigation@1"
+        },
+        {
+          "command": "copy-path-with-code.createFolder",
+          "when": "view == globalFolderManager",
           "group": "navigation@1"
         }
       ]

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { state } from '../models/models';
 import { Logger } from '../utils/logger';
+import { getFoldersForCurrentWorkspace } from '../utils/workspaceUtils';
 
 interface TreeNode {
     name: string;
@@ -397,46 +398,29 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
     }
 
     private getFolderItems(): vscode.TreeItem[] {
-        Logger.debug(`Getting folder items for ${state.folders.length} folders`);
+        // Only show folders from current workspace
+        const currentWorkspaceFolders = getFoldersForCurrentWorkspace();
+        Logger.debug(`Getting folder items for ${currentWorkspaceFolders.length} folders from current workspace`);
 
-        return state.folders.map(folder => {
+        return currentWorkspaceFolders.map(folder => {
             const treeItem = new vscode.TreeItem(
                 folder.name,
                 vscode.TreeItemCollapsibleState.Collapsed
             );
 
-            // FIX: Make sure both id and folderId are set properly
+            // Set both id and folderId properly
             treeItem.id = folder.id;
             (treeItem as any).folderId = folder.id;
             treeItem.contextValue = 'folder';
 
-            const isCurrentWorkspace = this.isFolderInCurrentWorkspace(folder);
+            // Always use folder-opened for current workspace folders
+            treeItem.iconPath = new vscode.ThemeIcon('folder-opened');
 
-            // Use VS Code built-in folder icons
-            if (isCurrentWorkspace) {
-                // Use folder-opened for folders from current workspace
-                treeItem.iconPath = new vscode.ThemeIcon('folder-opened');
-            } else {
-                // Use folder-library for folders from different workspaces
-                treeItem.iconPath = new vscode.ThemeIcon('folder-library');
-            }
-
-            if (folder.workspaceFolder && !isCurrentWorkspace) {
-                const workspaceName = path.basename(folder.workspaceFolder);
-                treeItem.description = `(${workspaceName})`;
-                treeItem.tooltip = new vscode.MarkdownString(
-                    `**${folder.name}**\n\n` +
-                    `Files: ${folder.files.length}\n` +
-                    `Workspace: ${workspaceName}\n` +
-                    `*From different workspace*`
-                );
-            } else {
-                treeItem.tooltip = new vscode.MarkdownString(
-                    `**${folder.name}**\n\n` +
-                    `Files: ${folder.files.length}\n` +
-                    `Current workspace`
-                );
-            }
+            treeItem.tooltip = new vscode.MarkdownString(
+                `**${folder.name}**\n\n` +
+                `Files: ${folder.files.length}\n` +
+                `Current workspace`
+            );
 
             Logger.debug(`Created folder item: ${folder.name} with ID: ${folder.id}`);
             return treeItem;
@@ -675,11 +659,6 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                     arguments: [node.uri]
                 };
                 item.contextValue = 'file';
-
-                const isCurrentWorkspace = this.isFolderInCurrentWorkspace(folder);
-                if (!isCurrentWorkspace) {
-                    item.description = '(other workspace)';
-                }
 
                 item.tooltip = new vscode.MarkdownString(
                     `**${node.name}**\n\nPath: ${node.path}`
