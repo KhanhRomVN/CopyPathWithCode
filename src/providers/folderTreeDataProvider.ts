@@ -220,7 +220,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
 
         const items: vscode.TreeItem[] = [];
 
-        // Header with folder info and actions
+        // Header with folder info and actions - using VS Code folder icons
         const headerItem = new vscode.TreeItem(
             this.fileManagementState.mode === 'add'
                 ? `Add Files to "${folder.name}"`
@@ -228,10 +228,13 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             vscode.TreeItemCollapsibleState.Expanded
         );
 
-        // Use built-in VS Code icons instead of emojis
-        headerItem.iconPath = new vscode.ThemeIcon(
-            this.fileManagementState.mode === 'add' ? 'add' : 'remove'
-        );
+        // Use appropriate VS Code folder icons based on mode
+        if (this.fileManagementState.mode === 'add') {
+            headerItem.iconPath = new vscode.ThemeIcon('folder-opened');
+        } else {
+            headerItem.iconPath = new vscode.ThemeIcon('folder');
+        }
+
         headerItem.contextValue = 'fileManagementHeader';
         (headerItem as any).isFileManagementHeader = true;
 
@@ -371,11 +374,13 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                     `**${node.name}**\n\nPath: ${node.path}\nClick to ${isSelected ? 'deselect' : 'select'}`
                 );
             } else {
-                // Use built-in folder icon for directories
+                // Use folder icon for directories in file management mode
                 item.iconPath = new vscode.ThemeIcon('folder');
+
                 item.contextValue = 'fileManagementDirectory';
 
                 const fileCount = this.countFilesInNode(node);
+
                 item.tooltip = new vscode.MarkdownString(
                     `**${node.name}/**\n\nContains: ${fileCount} file(s)`
                 );
@@ -407,11 +412,12 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
 
             const isCurrentWorkspace = this.isFolderInCurrentWorkspace(folder);
 
-            // Use built-in VS Code icons without custom colors
+            // Use VS Code built-in folder icons
             if (isCurrentWorkspace) {
-                treeItem.iconPath = new vscode.ThemeIcon('folder');
+                // Use folder-opened for folders from current workspace
+                treeItem.iconPath = new vscode.ThemeIcon('folder-opened');
             } else {
-                // Use a different icon for folders from other workspaces
+                // Use folder-library for folders from different workspaces
                 treeItem.iconPath = new vscode.ThemeIcon('folder-library');
             }
 
@@ -680,10 +686,19 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                 );
                 Logger.debug(`    Configured as FILE item`);
             } else {
-                item.iconPath = new vscode.ThemeIcon('folder');
+                // Use VS Code built-in folder icons for directories
+                const fileCount = this.countFilesInNode(node);
+
+                if (fileCount > 0) {
+                    // Use folder-opened icon for non-empty directories
+                    item.iconPath = new vscode.ThemeIcon('folder-opened');
+                } else {
+                    // Use regular folder icon for empty directories
+                    item.iconPath = new vscode.ThemeIcon('folder');
+                }
+
                 item.contextValue = 'directory';
 
-                const fileCount = this.countFilesInNode(node);
                 item.tooltip = new vscode.MarkdownString(
                     `**${node.name}/**\n\nContains: ${fileCount} file(s)`
                 );

@@ -81,7 +81,11 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
         treeDataProvider.exitFileManagementMode();
     }
 
-    const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', placeHolder: 'My Code Folder' });
+    const name = await vscode.window.showInputBox({
+        prompt: 'Enter folder name',
+        placeHolder: 'My Code Folder',
+        title: 'Create New Folder'
+    });
     if (!name) { return; }
 
     // FIXED: Filter out non-file schemes like "output:", "debug:", etc.
@@ -91,19 +95,28 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
 
     Logger.info(`Found ${fileEditors.length} file editors (filtered out ${vscode.window.visibleTextEditors.length - fileEditors.length} non-file editors)`);
 
-    // Give user choice instead of auto-adding all files
+    // Give user choice instead of auto-adding all files with icons
     const options = [
-        'Create empty folder',
-        `Add ${fileEditors.length} open file${fileEditors.length !== 1 ? 's' : ''}`,
+        {
+            label: 'Create empty folder',
+            description: 'Start with an empty folder',
+            iconPath: new vscode.ThemeIcon('folder')
+        },
+        {
+            label: `Add ${fileEditors.length} open file${fileEditors.length !== 1 ? 's' : ''}`,
+            description: 'Include currently open files',
+            iconPath: new vscode.ThemeIcon('folder-opened')
+        }
     ];
 
     const choice = await vscode.window.showQuickPick(options, {
-        placeHolder: 'Include files in folder?'
+        placeHolder: 'Include files in folder?',
+        title: `Creating folder "${name}"`
     });
 
     if (!choice) { return; }
 
-    const openFiles = choice === options[1] ? fileEditors.map(e => e.document.uri.toString()) : [];
+    const openFiles = choice.label.includes('Add') ? fileEditors.map(e => e.document.uri.toString()) : [];
 
     // Store current workspace information
     const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
@@ -132,7 +145,7 @@ async function startAddFileMode(treeDataProvider: FolderTreeDataProvider, folder
             return;
         }
 
-        // Filter folders to show workspace info
+        // Filter folders to show workspace info - let VS Code handle folder icons  
         const folderChoices = state.folders.map(f => {
             const workspaceInfo = f.workspaceFolder ? ` (${path.basename(f.workspaceFolder)})` : '';
             const isCurrentWorkspace = isFromCurrentWorkspace(f);
@@ -140,13 +153,17 @@ async function startAddFileMode(treeDataProvider: FolderTreeDataProvider, folder
             return {
                 label: f.name + workspaceInfo,
                 description: !isCurrentWorkspace ? 'From different workspace' : undefined,
+                // Remove iconPath to let VS Code use default folder icons
                 folder: f
             };
         });
 
         const pick = await vscode.window.showQuickPick(
             folderChoices,
-            { placeHolder: 'Select folder to add files' }
+            {
+                placeHolder: 'Select folder to add files',
+                title: 'Add Files to Folder'
+            }
         );
         if (!pick) {
             return;
@@ -164,6 +181,10 @@ async function startAddFileMode(treeDataProvider: FolderTreeDataProvider, folder
     if (!isFromCurrentWorkspace(folder)) {
         const choice = await vscode.window.showWarningMessage(
             `This folder was created in a different workspace (${folder.workspaceFolder ? path.basename(folder.workspaceFolder) : 'Unknown'}). Do you want to continue?`,
+            {
+                modal: true,
+                detail: 'Files from the current workspace will be added to this folder.'
+            },
             'Continue', 'Cancel'
         );
         if (choice !== 'Continue') {
@@ -184,7 +205,7 @@ async function startRemoveFileMode(treeDataProvider: FolderTreeDataProvider, fol
             return;
         }
 
-        // Filter folders to show workspace info
+        // Filter folders to show workspace info with appropriate icons
         const folderChoices = state.folders.map(f => {
             const workspaceInfo = f.workspaceFolder ? ` (${path.basename(f.workspaceFolder)})` : '';
             const isCurrentWorkspace = isFromCurrentWorkspace(f);
@@ -192,13 +213,19 @@ async function startRemoveFileMode(treeDataProvider: FolderTreeDataProvider, fol
             return {
                 label: f.name + workspaceInfo,
                 description: !isCurrentWorkspace ? 'From different workspace' : undefined,
+                iconPath: isCurrentWorkspace ?
+                    new vscode.ThemeIcon('folder-opened') :
+                    new vscode.ThemeIcon('folder-library'),
                 folder: f
             };
         });
 
         const pick = await vscode.window.showQuickPick(
             folderChoices,
-            { placeHolder: 'Select folder to remove files' }
+            {
+                placeHolder: 'Select folder to remove files',
+                title: 'Remove Files from Folder'
+            }
         );
         if (!pick) {
             return;
@@ -284,6 +311,10 @@ async function openFolderFiles(folderParam: any) {
     if (!isFromCurrentWorkspace(folder)) {
         const choice = await vscode.window.showWarningMessage(
             `This folder contains files from a different workspace (${folder.workspaceFolder ? path.basename(folder.workspaceFolder) : 'Unknown'}). Some files might not be accessible. Continue?`,
+            {
+                modal: true,
+                detail: 'Files from different workspaces might not open correctly.'
+            },
             'Continue', 'Cancel'
         );
         if (choice !== 'Continue') {
@@ -291,10 +322,26 @@ async function openFolderFiles(folderParam: any) {
         }
     }
 
-    const options = ['Close existing tabs', 'Keep existing tabs'];
-    const sel = await vscode.window.showQuickPick(options, { placeHolder: 'Handle existing tabs?' });
+    const options = [
+        {
+            label: 'Close existing tabs',
+            description: 'Close all open editors first',
+            iconPath: new vscode.ThemeIcon('close-all')
+        },
+        {
+            label: 'Keep existing tabs',
+            description: 'Add to currently open files',
+            iconPath: new vscode.ThemeIcon('add')
+        }
+    ];
+
+    const sel = await vscode.window.showQuickPick(options, {
+        placeHolder: 'Handle existing tabs?',
+        title: `Opening ${folder.files.length} files from "${folder.name}"`
+    });
     if (!sel) { return; }
-    if (sel === options[0]) {
+
+    if (sel.label === 'Close existing tabs') {
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
 
@@ -324,11 +371,28 @@ async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, 
         return;
     }
 
+    const options = [
+        {
+            label: 'Cancel',
+            description: 'Keep the folder',
+            iconPath: new vscode.ThemeIcon('close')
+        },
+        {
+            label: `Delete "${folder.name}"`,
+            description: `Remove folder with ${folder.files.length} files`,
+            iconPath: new vscode.ThemeIcon('trash')
+        }
+    ];
+
     const confirm = await vscode.window.showQuickPick(
-        ['Cancel', `Delete "${folder.name}"`],
-        { placeHolder: `Are you sure you want to delete "${folder.name}"?` }
+        options,
+        {
+            placeHolder: `Are you sure you want to delete "${folder.name}"?`,
+            title: 'Delete Folder'
+        }
     );
-    if (confirm === `Delete "${folder.name}"`) {
+
+    if (confirm && confirm.label.startsWith('Delete')) {
         state.folders = state.folders.filter(f => f.id !== folder.id);
         saveFolders(context);
 
@@ -353,7 +417,8 @@ async function renameFolder(folderParam: any, context: vscode.ExtensionContext, 
 
     const newName = await vscode.window.showInputBox({
         prompt: 'Enter new folder name',
-        value: folder.name
+        value: folder.name,
+        title: `Rename "${folder.name}"`
     });
 
     if (newName && newName !== folder.name) {
@@ -374,14 +439,40 @@ async function showFolderMenu(folderParam: any) {
     const isCurrentWorkspace = isFromCurrentWorkspace(folder);
     const workspaceInfo = folder.workspaceFolder ? ` (${path.basename(folder.workspaceFolder)})` : '';
 
-    const selection = await vscode.window.showQuickPick([
-        'Add File to Folder',
-        'Remove File from Folder',
-        'Open Folder Files',
-        'Copy Folder Contents',
-        'Rename Folder',
-        'Delete Folder'
-    ], {
+    const menuOptions = [
+        {
+            label: 'Add File to Folder',
+            description: 'Select files to add',
+            iconPath: new vscode.ThemeIcon('add')
+        },
+        {
+            label: 'Remove File from Folder',
+            description: 'Remove existing files',
+            iconPath: new vscode.ThemeIcon('remove')
+        },
+        {
+            label: 'Open Folder Files',
+            description: `Open ${folder.files.length} files in editor`,
+            iconPath: new vscode.ThemeIcon('folder-opened')
+        },
+        {
+            label: 'Copy Folder Contents',
+            description: 'Copy all files to clipboard',
+            iconPath: new vscode.ThemeIcon('copy')
+        },
+        {
+            label: 'Rename Folder',
+            description: 'Change folder name',
+            iconPath: new vscode.ThemeIcon('edit')
+        },
+        {
+            label: 'Delete Folder',
+            description: 'Remove folder permanently',
+            iconPath: new vscode.ThemeIcon('trash')
+        }
+    ];
+
+    const selection = await vscode.window.showQuickPick(menuOptions, {
         placeHolder: `Select action for "${folder.name}"${workspaceInfo}`,
         title: `Folder Actions${!isCurrentWorkspace ? ' (Different Workspace)' : ''}`
     });
@@ -397,7 +488,7 @@ async function showFolderMenu(folderParam: any) {
         };
 
         // Call command and pass Folder (not TreeItem)
-        await vscode.commands.executeCommand(commandMap[selection], folder);
+        await vscode.commands.executeCommand(commandMap[selection.label], folder);
     }
 }
 
