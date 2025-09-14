@@ -1,3 +1,5 @@
+// Updated src/views/folderWebview.ts with enhanced icon system
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getFolderById } from '../utils/folderUtils';
@@ -138,6 +140,9 @@ export class FolderWebview {
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <title>${title}</title>
             <style>
+                /* Thêm font support cho emoji */
+                @import url('https://fonts.googleapis.com/css2?family=Noto+Emoji:wght@400;700&display=swap');
+                
                 :root {
                     --vscode-button-height: 28px;
                     --vscode-input-height: 26px;
@@ -148,7 +153,7 @@ export class FolderWebview {
                 }
                 
                 body {
-                    font-family: var(--vscode-font-family, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif);
+                    font-family: var(--vscode-font-family, 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif);
                     font-size: 13px;
                     background-color: var(--vscode-editor-background, #1e1e1e);
                     color: var(--vscode-editor-foreground, #d4d4d4);
@@ -157,6 +162,41 @@ export class FolderWebview {
                     height: 100vh;
                     display: flex;
                     flex-direction: column;
+                }
+                
+                /* CSS cho emoji icons */
+                .icon {
+                    width: 20px;
+                    height: 20px;
+                    margin-right: 6px;
+                    flex-shrink: 0;
+                    text-align: center;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 16px;
+                    line-height: 20px;
+                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+                }
+                
+                .folder-icon {
+                    color: var(--vscode-icon-foreground, #c5c5c5);
+                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+                }
+                
+                .file-icon {
+                    color: var(--vscode-icon-foreground, #c5c5c5);
+                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+                }
+                
+                .search-icon {
+                    position: absolute;
+                    left: 10px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: var(--vscode-input-placeholderForeground, #7f7f7f);
+                    pointer-events: none;
+                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
                 }
                 
                 .container {
@@ -191,8 +231,8 @@ export class FolderWebview {
                     gap: 6px;
                 }
                 
-                .folder-icon {
-                    color: var(--vscode-icon-foreground, #c5c5c5);
+                .folder-info .icon {
+                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
                 }
                 
                 .search-container {
@@ -216,15 +256,6 @@ export class FolderWebview {
                 #search-input:focus {
                     border-color: var(--vscode-focusBorder);
                     outline: 1px solid var(--vscode-focusBorder);
-                }
-                
-                .search-icon {
-                    position: absolute;
-                    left: 10px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    color: var(--vscode-input-placeholderForeground, #7f7f7f);
-                    pointer-events: none;
                 }
                 
                 .file-tree-container {
@@ -272,27 +303,6 @@ export class FolderWebview {
                 .folder:focus, .file:focus {
                     background-color: var(--vscode-list-focusBackground, rgba(255, 255, 255, 0.1));
                     outline: 1px solid var(--vscode-focusBorder);
-                }
-                
-                .icon {
-                    width: 20px;
-                    height: 20px;
-                    margin-right: 6px;
-                    flex-shrink: 0;
-                    text-align: center;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 16px;
-                    line-height: 20px;
-                }
-                
-                .folder-icon {
-                    color: var(--vscode-icon-foreground, #c5c5c5);
-                }
-                
-                .file-icon {
-                    color: var(--vscode-icon-foreground, #c5c5c5);
                 }
                 
                 .checkbox-container {
@@ -457,41 +467,50 @@ export class FolderWebview {
 
                 vscode.postMessage({ command: 'requestFileList', mode: '${mode}' });
 
+                // Enhanced file icon function with extensive mapping
                 function getFileIcon(fileName) {
-                    const ext = fileName.split('.').pop().toLowerCase();
+                    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+                    const baseName = fileName.toLowerCase();
+
                     const iconMap = {
-                        // Programming languages
-                        'js': '🟨', 'ts': '🟦', 'jsx': '⚛️', 'tsx': '⚛️',
-                        'json': '📜', 'md': '📝', 'html': '🌐', 'htm': '🌐',
+                        // Web Development
+                        'html': '🌐', 'htm': '🌐',
                         'css': '🎨', 'scss': '🎨', 'sass': '🎨', 'less': '🎨',
-                        'php': '🐘', 'py': '🐍', 'rb': '💎', 'java': '☕', 'kt': '🔷', 'dart': '🎯',
-                        'c': '🔧', 'cpp': '🔧', 'h': '🔧', 'hpp': '🔧', 'cs': '⚔️', 'swift': '🐦', 'go': '🐹',
-                        'sql': '💾', 'pl': '🐪', 'lua': '🌙', 'rs': '🦀', 'sh': '💻', 'bat': '🪟', 'ps1': '💻',
-                        
-                        // Data formats
-                        'xml': '📄', 'yml': '⚙️', 'yaml': '⚙️', 'toml': '⚙️', 'ini': '⚙️', 'cfg': '⚙️', 'conf': '⚙️',
-                        'csv': '📊', 'tsv': '📊', 'xls': '📊', 'xlsx': '📊', 'ods': '📊',
-                        
-                        // Media files
-                        'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'svg': '✒️', 'ico': '🖼️', 'webp': '🖼️',
-                        'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'ogg': '🎵', 'm4a': '🎵',
-                        'mp4': '🎬', 'avi': '🎬', 'mov': '🎬', 'mkv': '🎬', 'webm': '🎬', 'flv': '🎬',
-                        
+                        'js': '🟨', 'mjs': '🟨', 'cjs': '🟨',
+                        'ts': '🟦', 'tsx': '⚛️', 'jsx': '⚛️',
+                        'vue': '💚', 'svelte': '🧡',
+                        'php': '🐘',
+
+                        // Programming Languages
+                        'py': '🐍', 'java': '☕',
+                        'c': '🔧', 'h': '🔧',
+                        'cpp': '⚙️', 'cc': '⚙️', 'hpp': '⚙️',
+                        'cs': '🔷', 'go': '🐹', 'rs': '🦀',
+                        'rb': '💎', 'swift': '🧡',
+
+                        // Config & Data
+                        'json': '📋', 'xml': '📄',
+                        'yaml': '⚙️', 'yml': '⚙️',
+                        'ini': '⚙️', 'cfg': '⚙️', 'conf': '⚙️',
+
                         // Documents
-                        'pdf': '📕', 'doc': '📄', 'docx': '📄', 'rtf': '📄', 'odt': '📄', 'txt': '📄', 'log': '📃',
-                        'ppt': '📊', 'pptx': '📊', 'odp': '📊',
-                        
+                        'md': '📝', 'txt': '📄', 'pdf': '📕',
+                        'doc': '📘', 'docx': '📘',
+
+                        // Images
+                        'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️',
+                        'gif': '🎞️', 'svg': '✨', 'ico': '🎯',
+
                         // Archives
-                        'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦', 'bz2': '📦', 'xz': '📦',
-                        
-                        // Executables
-                        'exe': '⚙️', 'dll': '⚙️', 'so': '⚙️', 'dmg': '🍎', 'pkg': '🍎', 'deb': '🐧', 'rpm': '🐧',
-                        'apk': '📱', 'ipa': '📱',
-                        
-                        // Configuration
-                        'env': '⚙️', 'gitignore': '📁', 'dockerfile': '🐳', 'makefile': '⚙️', 'lock': '🔒'
+                        'zip': '📦', 'rar': '📦', '7z': '📦',
+                        'tar': '📦', 'gz': '📦'
                     };
-                    
+
+                    // Check special files
+                    if (baseName.includes('readme')) return '📖';
+                    if (baseName.includes('license')) return '📜';
+                    if (baseName.includes('config')) return '⚙️';
+
                     return iconMap[ext] || '📄';
                 }
 
@@ -508,14 +527,19 @@ export class FolderWebview {
                 function highlightMatches(text, term) {
                     if (!term) return text;
                     
-                    const regex = new RegExp(escapeRegExp(term), 'gi');
+                    const regex = new RegExp('(' + escapeRegExp(term) + ')', 'gi');
                     return text.replace(regex, '<span class="match-highlight">$1</span>');
                 }
 
                 function escapeRegExp(string) {
-                    return string.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&');
+                    const specialChars = ['*', '+', '?', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\\\'];
+                    let result = string;
+                    for (const char of specialChars) {
+                        result = result.split(char).join('\\\\' + char);
+                    }
+                    return result;
                 }
-
+                    
                 function renderTree(tree, parentPath) {
                     if (!tree || Object.keys(tree).length === 0) {
                         return '<p class="tree-placeholder">No files found</p>';
@@ -595,17 +619,6 @@ export class FolderWebview {
                     document.querySelectorAll('.select-box').forEach(box => {
                         box.addEventListener('change', () => {
                             handleCheckboxChange(box);
-                        });
-                    });
-                    
-                    // Focus styles
-                    document.querySelectorAll('.folder, .file').forEach(el => {
-                        el.addEventListener('focus', () => {
-                            el.classList.add('focused');
-                        });
-                        
-                        el.addEventListener('blur', () => {
-                            el.classList.remove('focused');
                         });
                     });
                 }

@@ -2,7 +2,7 @@
   "name": "copy-path-with-code",
   "displayName": "Copy Path with Code",
   "description": "Copy file path along with its content",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "khanhromvn",
   "license": "MIT",
   "repository": {
@@ -44,12 +44,12 @@
       {
         "command": "copy-path-with-code.createFolder",
         "title": "Create Folder",
-        "icon": "add"
+        "icon": "$(add)"
       },
       {
         "command": "copy-path-with-code.showFolderMenu",
         "title": "Folder Menu",
-        "icon": "$(ellipsis)"
+        "icon": "$(kebab-vertical)"
       },
       {
         "command": "copy-path-with-code.addFileToFolder",
@@ -70,6 +70,10 @@
       {
         "command": "copy-path-with-code.deleteFolder",
         "title": "Delete Folder"
+      },
+      {
+        "command": "copy-path-with-code.renameFolder",
+        "title": "Rename Folder"
       },
       {
         "command": "copy-path-with-code.toggleClipboardDetection",
@@ -100,12 +104,26 @@
         "command": "copy-path-with-code.saveClipboardToTemp",
         "title": "Save Clipboard to Temp",
         "category": "Copy Path with Code"
-    },
-    {
+      },
+      {
         "command": "copy-path-with-code.restoreClipboardFromTemp",
         "title": "Restore Clipboard from Temp",
         "category": "Copy Path with Code"
-    }
+      },
+      {
+        "command": "copy-path-with-code.expandAllDirectories",
+        "title": "Expand All",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "copy-path-with-code.collapseAllDirectories", 
+        "title": "Collapse All",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "copy-path-with-code.revealInExplorer",
+        "title": "Reveal in Explorer"
+      }
     ],
     "keybindings": [
       {
@@ -144,19 +162,19 @@
         "command": "copy-path-with-code.saveClipboardToTemp",
         "key": "ctrl+alt+q",
         "mac": "cmd+alt+q"
-    },
-    {
+      },
+      {
         "command": "copy-path-with-code.restoreClipboardFromTemp",
         "key": "ctrl+alt+e",
         "mac": "cmd+alt+e"
-    }
+      }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "copy-path-with-code-folders",
           "title": "Code Folders",
-          "icon": "folder"
+          "icon": "$(folder-opened)"
         }
       ]
     },
@@ -182,14 +200,33 @@
           "command": "copy-path-with-code.showFolderMenu",
           "when": "view == folderManager && viewItem == folder",
           "group": "inline"
+        },
+        {
+          "command": "copy-path-with-code.revealInExplorer",
+          "when": "view == folderManager && viewItem == file",
+          "group": "navigation"
+        },
+        {
+          "command": "copy-path-with-code.revealInExplorer",
+          "when": "view == folderManager && viewItem == directory", 
+          "group": "navigation"
         }
       ],
       "view/title": [
         {
           "command": "copy-path-with-code.createFolder",
           "when": "view == folderManager",
-          "group": "navigation",
-          "icon": "$(add)"
+          "group": "navigation"
+        },
+        {
+          "command": "copy-path-with-code.expandAllDirectories",
+          "when": "view == folderManager",
+          "group": "navigation"
+        },
+        {
+          "command": "copy-path-with-code.collapseAllDirectories",
+          "when": "view == folderManager", 
+          "group": "navigation"
         }
       ]
     },
@@ -200,9 +237,48 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically detect files from clipboard content"
+        },
+        "copyPathWithCode.showFileCount": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show file count in directory descriptions"
+        },
+        "copyPathWithCode.expandDirectoriesByDefault": {
+          "type": "boolean",
+          "default": false,
+          "description": "Expand directories by default when opening folder"
         }
       }
-    }
+    },
+    "colors": [
+      {
+        "id": "copyPathWithCode.folderDifferentWorkspace",
+        "description": "Color for folders from different workspaces",
+        "defaults": {
+          "dark": "#999999",
+          "light": "#666666",
+          "highContrast": "#888888"
+        }
+      },
+      {
+        "id": "copyPathWithCode.currentWorkspaceIndicator",
+        "description": "Color for current workspace indicator",
+        "defaults": {
+          "dark": "#4CAF50",
+          "light": "#2E7D32",
+          "highContrast": "#00FF00"
+        }
+      },
+      {
+        "id": "copyPathWithCode.differentWorkspaceIndicator",
+        "description": "Color for different workspace indicator",
+        "defaults": {
+          "dark": "#FF9800",
+          "light": "#F57C00",
+          "highContrast": "#FFFF00"
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

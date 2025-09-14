@@ -70,12 +70,26 @@ function resolveFolder(folderOrItem: any): Folder | undefined {
 async function createFolder(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', placeHolder: 'My Code Folder' });
     if (!name) { return; }
+
     const openFiles = vscode.window.visibleTextEditors.map(e => e.document.uri.toString());
-    const folder: Folder = { id: Date.now().toString(), name, files: openFiles };
+
+    // Store current workspace information
+    const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
+    const workspaceFolder = currentWorkspace ? currentWorkspace.uri.fsPath : undefined;
+
+    const folder: Folder = {
+        id: Date.now().toString(),
+        name,
+        files: openFiles,
+        workspaceFolder
+    };
+
     state.folders.push(folder);
     saveFolders(context);
     treeDataProvider.refresh();
-    vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files`);
+
+    const workspaceInfo = workspaceFolder ? ` in workspace "${path.basename(workspaceFolder)}"` : '';
+    vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files${workspaceInfo}`);
 }
 
 async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
@@ -85,8 +99,21 @@ async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProv
             vscode.window.showInformationMessage('No folders available. Create a folder first.');
             return;
         }
+
+        // Filter folders to show workspace info
+        const folderChoices = state.folders.map(f => {
+            const workspaceInfo = f.workspaceFolder ? ` (${path.basename(f.workspaceFolder)})` : '';
+            const isCurrentWorkspace = isFromCurrentWorkspace(f);
+
+            return {
+                label: f.name + workspaceInfo,
+                description: !isCurrentWorkspace ? 'From different workspace' : undefined,
+                folder: f
+            };
+        });
+
         const pick = await vscode.window.showQuickPick(
-            state.folders.map(f => ({ label: f.name, folder: f })),
+            folderChoices,
             { placeHolder: 'Select folder to add files' }
         );
         if (!pick) {
@@ -99,6 +126,18 @@ async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProv
         vscode.window.showErrorMessage('Folder not found');
         return;
     }
+
+    // Check if folder is from different workspace
+    if (!isFromCurrentWorkspace(folder)) {
+        const choice = await vscode.window.showWarningMessage(
+            `This folder was created in a different workspace (${folder.workspaceFolder ? path.basename(folder.workspaceFolder) : 'Unknown'}). Do you want to continue?`,
+            'Continue', 'Cancel'
+        );
+        if (choice !== 'Continue') {
+            return;
+        }
+    }
+
     FolderWebview.show(context, folder.id, 'add', treeDataProvider);
 }
 
@@ -109,8 +148,21 @@ async function showRemoveFileWebview(context: vscode.ExtensionContext, treeDataP
             vscode.window.showInformationMessage('No folders available.');
             return;
         }
+
+        // Filter folders to show workspace info
+        const folderChoices = state.folders.map(f => {
+            const workspaceInfo = f.workspaceFolder ? ` (${path.basename(f.workspaceFolder)})` : '';
+            const isCurrentWorkspace = isFromCurrentWorkspace(f);
+
+            return {
+                label: f.name + workspaceInfo,
+                description: !isCurrentWorkspace ? 'From different workspace' : undefined,
+                folder: f
+            };
+        });
+
         const pick = await vscode.window.showQuickPick(
-            state.folders.map(f => ({ label: f.name, folder: f })),
+            folderChoices,
             { placeHolder: 'Select folder to remove files' }
         );
         if (!pick) {
@@ -133,17 +185,41 @@ async function openFolderFiles(folderParam: any) {
         return;
     }
 
+    // Check if folder is from different workspace
+    if (!isFromCurrentWorkspace(folder)) {
+        const choice = await vscode.window.showWarningMessage(
+            `This folder contains files from a different workspace (${folder.workspaceFolder ? path.basename(folder.workspaceFolder) : 'Unknown'}). Some files might not be accessible. Continue?`,
+            'Continue', 'Cancel'
+        );
+        if (choice !== 'Continue') {
+            return;
+        }
+    }
+
     const options = ['Close existing tabs', 'Keep existing tabs'];
     const sel = await vscode.window.showQuickPick(options, { placeHolder: 'Handle existing tabs?' });
     if (!sel) { return; }
     if (sel === options[0]) {
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
+
     const unique = Array.from(new Set(folder.files));
+    let successCount = 0;
+    let failureCount = 0;
+
     for (const uri of unique) {
-        await vscode.window.showTextDocument(vscode.Uri.parse(uri), { preview: false });
+        try {
+            await vscode.window.showTextDocument(vscode.Uri.parse(uri), { preview: false });
+            successCount++;
+        } catch (error) {
+            failureCount++;
+            Logger.error(`Failed to open file: ${uri}`, error);
+        }
     }
-    vscode.window.showInformationMessage(`Opened ${unique.length} files from "${folder.name}"`);
+
+    const message = `Opened ${successCount} files from "${folder.name}"`;
+    const failureMessage = failureCount > 0 ? ` (${failureCount} files could not be opened)` : '';
+    vscode.window.showInformationMessage(message + failureMessage);
 }
 
 async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
@@ -192,6 +268,9 @@ async function showFolderMenu(folderParam: any) {
         return;
     }
 
+    const isCurrentWorkspace = isFromCurrentWorkspace(folder);
+    const workspaceInfo = folder.workspaceFolder ? ` (${path.basename(folder.workspaceFolder)})` : '';
+
     const selection = await vscode.window.showQuickPick([
         'Add File to Folder',
         'Remove File from Folder',
@@ -200,8 +279,8 @@ async function showFolderMenu(folderParam: any) {
         'Rename Folder',
         'Delete Folder'
     ], {
-        placeHolder: `Select action for "${folder.name}"`,
-        title: 'Folder Actions'
+        placeHolder: `Select action for "${folder.name}"${workspaceInfo}`,
+        title: `Folder Actions${!isCurrentWorkspace ? ' (Different Workspace)' : ''}`
     });
 
     if (selection) {
@@ -217,6 +296,20 @@ async function showFolderMenu(folderParam: any) {
         // Call command and pass Folder (not TreeItem)
         await vscode.commands.executeCommand(commandMap[selection], folder);
     }
+}
+
+// Helper function to check if folder is from current workspace
+function isFromCurrentWorkspace(folder: Folder): boolean {
+    const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
+    if (!currentWorkspace) {
+        return !folder.workspaceFolder; // If no workspace, only folders without workspace info are current
+    }
+
+    if (!folder.workspaceFolder) {
+        return true; // Legacy folders without workspace info are considered current
+    }
+
+    return folder.workspaceFolder === currentWorkspace.uri.fsPath;
 }
 
 // Function to open preview for file from clipboard

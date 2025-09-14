@@ -12,6 +12,7 @@ export interface Folder {
     name: string;
     files: string[];
     color?: string;
+    workspaceFolder?: string; // Store which workspace this folder was created in
 }
 
 export interface ErrorInfo {
