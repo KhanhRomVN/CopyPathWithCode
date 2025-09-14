@@ -3,7 +3,6 @@ import * as path from 'path';
 import { state, Folder, ClipboardFile } from '../models/models';
 import { saveFolders } from '../utils/folderUtils';
 import { copyFolderContents } from '../utils/clipboardUtils';
-import { FolderWebview } from '../views/folderWebview';
 import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
 import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvider';
 import { getFolderById } from '../utils/folderUtils';
@@ -19,13 +18,22 @@ export function registerFolderCommands(
 
     const commands = [
         vscode.commands.registerCommand('copy-path-with-code.createFolder', () => createFolder(context, treeDataProvider)),
-        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', (folderItem) => showAddFileWebview(context, treeDataProvider, folderItem)),
-        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', (folderItem) => showRemoveFileWebview(context, treeDataProvider, folderItem)),
+        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', (folderItem) => startAddFileMode(treeDataProvider, folderItem)),
+        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', (folderItem) => startRemoveFileMode(treeDataProvider, folderItem)),
         vscode.commands.registerCommand('copy-path-with-code.openFolderFiles', (folder) => openFolderFiles(folder)),
         vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folder) => copyFolderContents(folder)),
         vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folder) => deleteFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folder) => renameFolder(folder, context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folder) => showFolderMenu(folder)),
+
+        // New inline file management commands
+        vscode.commands.registerCommand('copy-path-with-code.toggleFileSelection', (filePath: string) => {
+            treeDataProvider.toggleFileSelection(filePath);
+        }),
+        vscode.commands.registerCommand('copy-path-with-code.confirmFileManagement', () => confirmFileManagement(context, treeDataProvider)),
+        vscode.commands.registerCommand('copy-path-with-code.cancelFileManagement', () => {
+            treeDataProvider.exitFileManagementMode();
+        }),
 
         // Clipboard detection commands
         vscode.commands.registerCommand('copy-path-with-code.toggleClipboardDetection', () => {
@@ -68,6 +76,11 @@ function resolveFolder(folderOrItem: any): Folder | undefined {
 }
 
 async function createFolder(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+    // Exit file management mode if active
+    if (treeDataProvider.isInFileManagementMode()) {
+        treeDataProvider.exitFileManagementMode();
+    }
+
     const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', placeHolder: 'My Code Folder' });
     if (!name) { return; }
 
@@ -92,7 +105,7 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
     vscode.window.showInformationMessage(`Folder "${name}" created with ${openFiles.length} files${workspaceInfo}`);
 }
 
-async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
+async function startAddFileMode(treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
     let folderItem = folderParam;
     if (!folderItem) {
         if (!state.folders.length) {
@@ -121,6 +134,7 @@ async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProv
         }
         folderItem = pick.folder;
     }
+
     const folder = resolveFolder(folderItem);
     if (!folder) {
         vscode.window.showErrorMessage('Folder not found');
@@ -138,10 +152,12 @@ async function showAddFileWebview(context: vscode.ExtensionContext, treeDataProv
         }
     }
 
-    FolderWebview.show(context, folder.id, 'add', treeDataProvider);
+    // Enter add file mode
+    treeDataProvider.enterFileManagementMode(folder.id, 'add');
+    vscode.window.showInformationMessage(`Adding files to "${folder.name}". Select files in the sidebar and click "Confirm Add Selected".`);
 }
 
-async function showRemoveFileWebview(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
+async function startRemoveFileMode(treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
     let folderItem = folderParam;
     if (!folderItem) {
         if (!state.folders.length) {
@@ -170,12 +186,72 @@ async function showRemoveFileWebview(context: vscode.ExtensionContext, treeDataP
         }
         folderItem = pick.folder;
     }
+
     const folder = resolveFolder(folderItem);
     if (!folder) {
         vscode.window.showErrorMessage('Folder not found');
         return;
     }
-    FolderWebview.show(context, folder.id, 'remove', treeDataProvider);
+
+    if (folder.files.length === 0) {
+        vscode.window.showInformationMessage(`No files to remove from "${folder.name}".`);
+        return;
+    }
+
+    // Enter remove file mode
+    treeDataProvider.enterFileManagementMode(folder.id, 'remove');
+    vscode.window.showInformationMessage(`Removing files from "${folder.name}". Select files in the sidebar and click "Confirm Remove Selected".`);
+}
+
+async function confirmFileManagement(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+    const selectedFiles = treeDataProvider.getSelectedFiles();
+    const folderId = (treeDataProvider as any).fileManagementState.folderId;
+    const mode = (treeDataProvider as any).fileManagementState.mode;
+
+    if (!folderId || mode === 'normal') {
+        vscode.window.showErrorMessage('Not in file management mode');
+        return;
+    }
+
+    const folder = state.folders.find(f => f.id === folderId);
+    if (!folder) {
+        vscode.window.showErrorMessage('Folder not found');
+        treeDataProvider.exitFileManagementMode();
+        return;
+    }
+
+    if (selectedFiles.length === 0) {
+        vscode.window.showWarningMessage('No files selected');
+        return;
+    }
+
+    // Convert relative paths to URIs
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
+    const selectedUris = selectedFiles.map(p =>
+        vscode.Uri.file(path.join(workspaceRoot, p)).toString()
+    );
+
+    if (mode === 'add') {
+        // Add files to folder
+        const beforeCount = folder.files.length;
+        folder.files = Array.from(new Set([...folder.files, ...selectedUris]));
+        const addedCount = folder.files.length - beforeCount;
+
+        vscode.window.showInformationMessage(`Added ${addedCount} file(s) to "${folder.name}"`);
+        Logger.info(`Added ${addedCount} files to folder "${folder.name}"`);
+    } else {
+        // Remove files from folder
+        const beforeCount = folder.files.length;
+        folder.files = folder.files.filter(f => !selectedUris.includes(f));
+        const removedCount = beforeCount - folder.files.length;
+
+        vscode.window.showInformationMessage(`Removed ${removedCount} file(s) from "${folder.name}"`);
+        Logger.info(`Removed ${removedCount} files from folder "${folder.name}"`);
+    }
+
+    // Save changes and exit file management mode
+    saveFolders(context);
+    treeDataProvider.exitFileManagementMode();
 }
 
 async function openFolderFiles(folderParam: any) {
@@ -236,7 +312,15 @@ async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, 
     if (confirm === `Delete "${folder.name}"`) {
         state.folders = state.folders.filter(f => f.id !== folder.id);
         saveFolders(context);
-        treeDataProvider.refresh();
+
+        // Exit file management mode if we're managing this folder
+        if (treeDataProvider.isInFileManagementMode() &&
+            (treeDataProvider as any).fileManagementState.folderId === folder.id) {
+            treeDataProvider.exitFileManagementMode();
+        } else {
+            treeDataProvider.refresh();
+        }
+
         vscode.window.showInformationMessage(`Folder "${folder.name}" deleted`);
     }
 }

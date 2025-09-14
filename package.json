@@ -123,6 +123,18 @@
       {
         "command": "copy-path-with-code.revealInExplorer",
         "title": "Reveal in Explorer"
+      },
+      {
+        "command": "copy-path-with-code.toggleFileSelection",
+        "title": "Toggle File Selection"
+      },
+      {
+        "command": "copy-path-with-code.confirmFileManagement",
+        "title": "Confirm Selection"
+      },
+      {
+        "command": "copy-path-with-code.cancelFileManagement",
+        "title": "Cancel"
       }
     ],
     "keybindings": [
