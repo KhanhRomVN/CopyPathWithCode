@@ -15,9 +15,7 @@ const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 export function registerFolderCommands(
     context: vscode.ExtensionContext,
-    treeDataProvider: FolderTreeDataProvider,
-    clipboardTreeDataProvider: ClipboardTreeDataProvider
-) {
+    treeDataProvider: FolderTreeDataProvider) {
     const clipboardDetector = ClipboardDetector.init(context);
 
     const commands = [

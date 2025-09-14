@@ -9,4 +9,4 @@ export function registerCoreCommands(context: vscode.ExtensionContext) {
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
-}
+}   

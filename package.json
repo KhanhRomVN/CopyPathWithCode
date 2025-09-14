@@ -290,80 +290,10 @@
           "group": "inline"
         },
         {
-          "command": "copy-path-with-code.openFile",
-          "when": "view == folderManager && viewItem == file",
-          "group": "navigation@1"
-        },
-        {
-          "command": "copy-path-with-code.openToSide",
-          "when": "view == folderManager && viewItem == file",
-          "group": "navigation@2"
-        },
-        {
-          "command": "copy-path-with-code.openWith",
-          "when": "view == folderManager && viewItem == file",
-          "group": "navigation@3"
-        },
-        {
-          "command": "copy-path-with-code.cutFile",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "2_workspace@1"
-        },
-        {
-          "command": "copy-path-with-code.copyFile",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "2_workspace@2"
-        },
-        {
-          "command": "copy-path-with-code.pasteFile",
-          "when": "view == folderManager && viewItem == directory",
-          "group": "2_workspace@3"
-        },
-        {
-          "command": "copy-path-with-code.copyPath",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "5_cutcopypaste@1"
-        },
-        {
-          "command": "copy-path-with-code.copyRelativePath",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "5_cutcopypaste@2"
-        },
-        {
-          "command": "copy-path-with-code.revealInFileExplorer",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "7_modification@1"
-        },
-        {
-          "command": "copy-path-with-code.revealInExplorer",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "7_modification@2"
-        },
-        {
-          "command": "copy-path-with-code.renameFile",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "7_modification@3"
-        },
-        {
-          "command": "copy-path-with-code.deleteFile",
-          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
-          "group": "7_modification@4"
-        },
-        {
-          "command": "copy-path-with-code.newFile",
-          "when": "view == folderManager && viewItem == directory",
-          "group": "navigation@5"
-        },
-        {
-          "command": "copy-path-with-code.newFolder",
-          "when": "view == folderManager && viewItem == directory",
-          "group": "navigation@6"
-        },
-        {
           "command": "copy-path-with-code.selectAllFilesInFolder",
           "when": "view == folderManager && viewItem == fileManagementDirectory",
           "group": "inline"
-      }
+        }
       ],
       "view/title": [
         {

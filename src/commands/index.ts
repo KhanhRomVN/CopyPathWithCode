@@ -14,7 +14,7 @@ export function registerAllCommands(
     clipboardTreeDataProvider: ClipboardTreeDataProvider
 ) {
     registerCoreCommands(context);
-    registerFolderCommands(context, treeDataProvider, clipboardTreeDataProvider);
+    registerFolderCommands(context, treeDataProvider);
     registerDirectoryCommands(context, treeDataProvider);
     registerTempClipboardCommands(context);
     registerContextMenuCommands(context);
