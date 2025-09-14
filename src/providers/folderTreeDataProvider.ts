@@ -22,6 +22,9 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
     private _onDidChange = new vscode.EventEmitter<vscode.TreeItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChange.event;
 
+    // Add view mode support
+    private viewMode: 'workspace' | 'global' = 'workspace';
+
     private fileManagementState: FileManagementState = {
         mode: 'normal',
         folderId: null,
@@ -30,6 +33,18 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
 
     // Thêm cache cho cây thư mục
     private treeCache: Map<string, vscode.TreeItem[]> = new Map();
+
+    // Add method to switch view mode
+    public switchViewMode(mode: 'workspace' | 'global') {
+        this.viewMode = mode;
+        this.refresh();
+        vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', mode);
+    }
+
+    // Add method to get current view mode
+    public getViewMode(): 'workspace' | 'global' {
+        return this.viewMode;
+    }
 
     refresh(): void {
         // Clear cache khi refresh
@@ -94,8 +109,137 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         return element;
     }
 
+    // Update getChildren method to support both views
     getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
-        Logger.debug('=== getChildren called ===');
+        if (this.viewMode === 'global') {
+            return this.getGlobalChildren(element);
+        }
+        return this.getWorkspaceChildren(element);
+    }
+
+    // Global view logic - shows all folders from all workspaces
+    private async getGlobalChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
+        Logger.debug('=== getGlobalChildren called ===');
+        Logger.debug(`Element: ${element ? JSON.stringify({
+            label: element.label,
+            id: (element as any).id,
+            folderId: (element as any).folderId,
+            contextValue: element.contextValue,
+            isFileManagementHeader: (element as any).isFileManagementHeader
+        }) : 'ROOT'}`);
+
+        if (!element) {
+            // Root level behavior
+            Logger.debug(`File management mode: ${this.fileManagementState.mode}`);
+            if (this.fileManagementState.mode !== 'normal') {
+                return this.getFileManagementRootItems();
+            }
+            return Promise.resolve(this.getGlobalFolderItems());
+        }
+
+        const elementAny = element as any;
+
+        // File management mode navigation
+        if (this.fileManagementState.mode !== 'normal') {
+            if (elementAny.isFileManagementHeader) {
+                Logger.debug('Getting file management files');
+                return this.getFileManagementFiles();
+            }
+            if (elementAny.treeNode) {
+                const treeNode = elementAny.treeNode as TreeNode;
+                Logger.debug(`Expanding file management tree node: ${treeNode.name}`);
+                return Promise.resolve(this.convertFileTreeToItems(Array.from(treeNode.children.values())));
+            }
+            Logger.debug('No matching file management condition');
+            return Promise.resolve([]);
+        }
+
+        // Handle directory expansion FIRST (must come before folderId check)
+        if (elementAny.treeNode && elementAny.folderId) {
+            const treeNode = elementAny.treeNode as TreeNode;
+            const folder = state.folders.find(f => f.id === elementAny.folderId);
+
+            if (!folder) {
+                Logger.error(`Folder not found for directory expansion: ${elementAny.folderId}`);
+                return Promise.resolve([]);
+            }
+
+            Logger.debug(`=== EXPANDING DIRECTORY: ${treeNode.name} ===`);
+            Logger.debug(`Directory path: ${treeNode.path}`);
+            Logger.debug(`Children count: ${treeNode.children.size}`);
+            Logger.debug(`Children names: [${Array.from(treeNode.children.keys()).join(', ')}]`);
+
+            const items = this.convertTreeToItems(Array.from(treeNode.children.values()), folder);
+            Logger.debug(`Converted directory to ${items.length} items`);
+
+            // Lưu vào cache
+            const cacheKey = `global-${elementAny.folderId}-${treeNode.path}`;
+            this.treeCache.set(cacheKey, items);
+
+            return Promise.resolve(items);
+        }
+
+        // Global mode - folder root expansion
+        const folderId = elementAny.folderId || elementAny.id;
+        Logger.debug(`Global mode - folderId: ${folderId}`);
+
+        if (folderId) {
+            // Tạo key cache dựa trên folderId
+            const cacheKey = `global-${folderId}-`;
+
+            // Kiểm tra cache trước
+            if (this.treeCache.has(cacheKey)) {
+                Logger.debug(`Returning cached results for: ${cacheKey}`);
+                return Promise.resolve(this.treeCache.get(cacheKey)!);
+            }
+
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) {
+                Logger.error(`Folder not found for ID: ${folderId}`);
+                return Promise.resolve([]);
+            }
+
+            Logger.info(`=== EXPANDING FOLDER: ${folder.name} ===`);
+            Logger.info(`Folder ID: ${folder.id}`);
+            Logger.info(`Files count: ${folder.files.length}`);
+            Logger.info(`Files: ${JSON.stringify(folder.files, null, 2)}`);
+
+            // FIXED: Add validation before building tree
+            const validFiles = folder.files.filter(fileUri => {
+                try {
+                    const uri = vscode.Uri.parse(fileUri);
+                    Logger.debug(`Validating file URI: ${fileUri} -> scheme: ${uri.scheme}, fsPath: ${uri.fsPath}`);
+                    return uri.scheme === 'file';
+                } catch (error) {
+                    Logger.warn(`Invalid file URI in folder: ${fileUri}`, error);
+                    return false;
+                }
+            });
+
+            if (validFiles.length !== folder.files.length) {
+                Logger.info(`Filtered ${folder.files.length - validFiles.length} invalid files from folder`);
+            }
+
+            Logger.info(`=== BUILDING TREE FROM ${validFiles.length} VALID FILES ===`);
+            const tree = this.buildFileTree(validFiles);
+            Logger.info(`=== TREE BUILT WITH ${tree.length} ROOT NODES ===`);
+
+            const items = this.convertTreeToItems(tree, folder);
+            Logger.info(`=== CONVERTED TO ${items.length} TREE ITEMS ===`);
+
+            // Lưu vào cache
+            this.treeCache.set(cacheKey, items);
+
+            return Promise.resolve(items);
+        }
+
+        Logger.debug('No matching condition in getGlobalChildren, returning empty array');
+        return Promise.resolve([]);
+    }
+
+    // Workspace view logic - existing implementation
+    private async getWorkspaceChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
+        Logger.debug('=== getWorkspaceChildren called ===');
         Logger.debug(`Element: ${element ? JSON.stringify({
             label: element.label,
             id: (element as any).id,
@@ -149,7 +293,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             Logger.debug(`Converted directory to ${items.length} items`);
 
             // Lưu vào cache
-            const cacheKey = `${elementAny.folderId}-${treeNode.path}`;
+            const cacheKey = `workspace-${elementAny.folderId}-${treeNode.path}`;
             this.treeCache.set(cacheKey, items);
 
             return Promise.resolve(items);
@@ -161,7 +305,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
 
         if (folderId) {
             // Tạo key cache dựa trên folderId
-            const cacheKey = `${folderId}-`;
+            const cacheKey = `workspace-${folderId}-`;
 
             // Kiểm tra cache trước
             if (this.treeCache.has(cacheKey)) {
@@ -209,7 +353,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             return Promise.resolve(items);
         }
 
-        Logger.debug('No matching condition in getChildren, returning empty array');
+        Logger.debug('No matching condition in getWorkspaceChildren, returning empty array');
         return Promise.resolve([]);
     }
 
@@ -423,6 +567,57 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             );
 
             Logger.debug(`Created folder item: ${folder.name} with ID: ${folder.id}`);
+            return treeItem;
+        });
+    }
+
+    private getGlobalFolderItems(): vscode.TreeItem[] {
+        // Show all folders from all workspaces
+        Logger.debug(`Getting global folder items for ${state.folders.length} total folders`);
+
+        return state.folders.map(folder => {
+            const treeItem = new vscode.TreeItem(
+                folder.name,
+                vscode.TreeItemCollapsibleState.Collapsed
+            );
+
+            // Set both id and folderId properly
+            treeItem.id = folder.id;
+            (treeItem as any).folderId = folder.id;
+            treeItem.contextValue = 'folder';
+
+            // Check if folder is from current workspace
+            const isCurrentWorkspace = this.isFolderInCurrentWorkspace(folder);
+
+            if (isCurrentWorkspace) {
+                // Use folder-opened for current workspace folders
+                treeItem.iconPath = new vscode.ThemeIcon('folder-opened');
+            } else {
+                // Use folder-library for folders from different workspaces
+                treeItem.iconPath = new vscode.ThemeIcon('folder-library');
+            }
+
+            // Add workspace information to tooltip
+            const workspaceInfo = folder.workspaceFolder ?
+                `Workspace: ${path.basename(folder.workspaceFolder)}` :
+                'Workspace: Unknown';
+
+            treeItem.tooltip = new vscode.MarkdownString(
+                `**${folder.name}**\n\n` +
+                `Files: ${folder.files.length}\n` +
+                `${workspaceInfo}\n` +
+                `${isCurrentWorkspace ? 'Current workspace' : 'Different workspace'}`
+            );
+
+            // Add description to show workspace info
+            if (!isCurrentWorkspace) {
+                const workspaceName = folder.workspaceFolder ?
+                    path.basename(folder.workspaceFolder) :
+                    'Unknown';
+                treeItem.description = `(${workspaceName})`;
+            }
+
+            Logger.debug(`Created global folder item: ${folder.name} with ID: ${folder.id}, current workspace: ${isCurrentWorkspace}`);
             return treeItem;
         });
     }

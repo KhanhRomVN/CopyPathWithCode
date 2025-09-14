@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { state } from './models/models';
 import { loadFolders } from './utils/folderUtils';
 import { FolderTreeDataProvider } from './providers/folderTreeDataProvider';
-import { GlobalFolderTreeDataProvider } from './providers/globalFolderTreeDataProvider';
 import { registerAllCommands } from './commands';
 import { ClipboardDetector } from './utils/clipboardDetector';
 import { ClipboardTreeDataProvider } from './providers/clipboardTreeDataProvider';
@@ -36,18 +35,16 @@ export function activate(context: vscode.ExtensionContext) {
     // @ts-ignore
     vscode.window.showErrorMessage = () => Promise.resolve(undefined);
 
-    // Create folder tree view (current workspace only)
+    // Create folder tree view with both workspace and global capability
     const treeDataProvider = new FolderTreeDataProvider();
-    vscode.window.createTreeView('folderManager', { treeDataProvider });
-    Logger.debug('Folder tree view created');
-
-    // Create global folder tree view (all workspaces)
-    const globalTreeDataProvider = new GlobalFolderTreeDataProvider();
-    vscode.window.createTreeView('globalFolderManager', {
-        treeDataProvider: globalTreeDataProvider,
+    const treeView = vscode.window.createTreeView('folderManager', {
+        treeDataProvider,
         showCollapseAll: true
     });
-    Logger.debug('Global folder tree view created');
+    Logger.debug('Folder tree view created');
+
+    // Add context value for view mode
+    vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', 'workspace');
 
     // Initialize clipboard detection
     const clipboardDetector = ClipboardDetector.init(context);
@@ -72,13 +69,12 @@ export function activate(context: vscode.ExtensionContext) {
             treeDataProvider.refresh();
             Logger.debug('Folder view refreshed');
         }),
-        vscode.commands.registerCommand('copy-path-with-code.refreshGlobalFolderView', () => {
-            globalTreeDataProvider.refresh();
-            Logger.debug('Global folder view refreshed');
-        }),
-        vscode.commands.registerCommand('copy-path-with-code.openGlobalFolderManager', () => {
-            vscode.commands.executeCommand('workbench.view.extension.global-folder-manager');
-            Logger.debug('Global folder manager opened');
+        vscode.commands.registerCommand('copy-path-with-code.toggleViewMode', () => {
+            const currentMode = treeDataProvider.getViewMode();
+            const newMode = currentMode === 'workspace' ? 'global' : 'workspace';
+            treeDataProvider.switchViewMode(newMode);
+            vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', newMode);
+            Logger.debug(`View mode switched to: ${newMode}`);
         })
     );
 
@@ -88,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Start clipboard integrity monitoring
     startClipboardMonitoring();
 
-    // Register all commands with both tree providers
+    // Register all commands with tree provider
     registerAllCommands(context, treeDataProvider, clipboardTreeDataProvider);
     Logger.info('All commands registered');
 

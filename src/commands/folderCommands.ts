@@ -67,12 +67,7 @@ export function registerFolderCommands(
         // Add refresh command for folder tree
         vscode.commands.registerCommand('copy-path-with-code.refreshFolderView', () => {
             treeDataProvider.refresh();
-        }),
-
-        // Add global folder management command
-        vscode.commands.registerCommand('copy-path-with-code.openGlobalFolderManager', () => {
-            vscode.commands.executeCommand('workbench.view.extension.global-folder-manager');
-        }),
+        })
     ];
 
     commands.forEach(cmd => context.subscriptions.push(cmd));
@@ -185,8 +180,14 @@ function resolveFolder(folderOrItem: any): Folder | undefined {
     return undefined;
 }
 
-// Updated createFolder function with workspace restrictions
+// Updated createFolder function with view mode and workspace restrictions
 async function createFolder(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
+    // Check view mode first
+    if (treeDataProvider.getViewMode() === 'global') {
+        vscode.window.showWarningMessage('Cannot create folders in global view. Switch to workspace view.');
+        return;
+    }
+
     // Check if workspace is available
     if (!hasActiveWorkspace()) {
         vscode.window.showErrorMessage(
@@ -265,6 +266,12 @@ async function createFolder(context: vscode.ExtensionContext, treeDataProvider: 
 }
 
 async function startAddFileMode(treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
+    // Check view mode first
+    if (treeDataProvider.getViewMode() === 'global') {
+        vscode.window.showWarningMessage('Cannot add files in global view. Switch to workspace view.');
+        return;
+    }
+
     let folderItem = folderParam;
     if (!folderItem) {
         if (!state.folders.length) {
@@ -325,6 +332,12 @@ async function startAddFileMode(treeDataProvider: FolderTreeDataProvider, folder
 }
 
 async function startRemoveFileMode(treeDataProvider: FolderTreeDataProvider, folderParam?: any) {
+    // Check view mode first
+    if (treeDataProvider.getViewMode() === 'global') {
+        vscode.window.showWarningMessage('Cannot remove files in global view. Switch to workspace view.');
+        return;
+    }
+
     let folderItem = folderParam;
     if (!folderItem) {
         if (!state.folders.length) {
