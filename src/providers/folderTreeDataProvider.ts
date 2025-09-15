@@ -36,6 +36,9 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
     // Thêm cache cho cây thư mục
     private treeCache: Map<string, vscode.TreeItem[]> = new Map();
 
+    // Store reference to current file tree for "select all" functionality
+    private currentFileTree: TreeNode[] = [];
+
     // Add method to switch view mode
     public switchViewMode(mode: 'workspace' | 'global') {
         this.viewMode = mode;
@@ -86,6 +89,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             selectedFiles: new Set(),
             selectedFolders: new Set()
         };
+        this.currentFileTree = []; // Clear current tree
         this.refresh();
     }
 
@@ -109,21 +113,103 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         this.refresh();
     }
 
-    // Add this method to select all files in a folder
+    // FIXED: Improved implementation to select all files in a folder
     selectAllFilesInFolder(folderPath: string) {
-        const allFiles = this.getAllFilesInFolder(folderPath);
+        Logger.debug(`Selecting all files in folder: ${folderPath}`);
+
+        // Find the folder node in current tree
+        const folderNode = this.findNodeInTree(this.currentFileTree, folderPath);
+        if (!folderNode) {
+            Logger.warn(`Folder node not found: ${folderPath}`);
+            return;
+        }
+
+        // Get all files recursively from this folder
+        const allFiles = this.getAllFilesInNode(folderNode);
+        Logger.debug(`Found ${allFiles.length} files in folder ${folderPath}`);
+
+        // Add all files to selection
         allFiles.forEach(filePath => {
             this.fileManagementState.selectedFiles.add(filePath);
         });
+
         this.refresh();
     }
 
-    // Helper method to get all files in a folder
-    private getAllFilesInFolder(folderPath: string): string[] {
+    // NEW: Method to select all files in the current workspace (for root level)
+    selectAllFiles() {
+        Logger.debug('Selecting all files in workspace');
+
+        const allFiles = this.getAllFilesInNodes(this.currentFileTree);
+        Logger.debug(`Found ${allFiles.length} total files`);
+
+        // Add all files to selection
+        allFiles.forEach(filePath => {
+            this.fileManagementState.selectedFiles.add(filePath);
+        });
+
+        this.refresh();
+    }
+
+    // NEW: Method to deselect all files
+    deselectAllFiles() {
+        Logger.debug('Deselecting all files');
+        this.fileManagementState.selectedFiles.clear();
+        this.refresh();
+    }
+
+    // Helper method to find a node in the tree by path
+    private findNodeInTree(nodes: TreeNode[], targetPath: string): TreeNode | null {
+        for (const node of nodes) {
+            if (node.path === targetPath) {
+                return node;
+            }
+            if (!node.isFile && node.children.size > 0) {
+                const found = this.findNodeInTree(Array.from(node.children.values()), targetPath);
+                if (found) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    // Helper method to get all files in a single node recursively
+    private getAllFilesInNode(node: TreeNode): string[] {
         const files: string[] = [];
-        // You'll need to implement this based on your tree structure
-        // This should recursively get all file paths under the given folder
+
+        if (node.isFile) {
+            files.push(node.path);
+        } else {
+            // Recursively get files from children
+            for (const child of node.children.values()) {
+                files.push(...this.getAllFilesInNode(child));
+            }
+        }
+
         return files;
+    }
+
+    // Helper method to get all files from multiple nodes
+    private getAllFilesInNodes(nodes: TreeNode[]): string[] {
+        const files: string[] = [];
+
+        for (const node of nodes) {
+            files.push(...this.getAllFilesInNode(node));
+        }
+
+        return files;
+    }
+
+    // UPDATED: Improved implementation that properly builds the file list
+    private getAllFilesInFolder(folderPath: string): string[] {
+        const folderNode = this.findNodeInTree(this.currentFileTree, folderPath);
+        if (!folderNode) {
+            Logger.warn(`Folder not found in tree: ${folderPath}`);
+            return [];
+        }
+
+        return this.getAllFilesInNode(folderNode);
     }
 
     // Method to get current selection
@@ -416,6 +502,25 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
 
         items.push(headerItem);
 
+        // NEW: Add "Select All" and "Deselect All" buttons
+        const selectAllItem = new vscode.TreeItem('Select All Files', vscode.TreeItemCollapsibleState.None);
+        selectAllItem.iconPath = new vscode.ThemeIcon('check-all');
+        selectAllItem.contextValue = 'selectAllFiles';
+        selectAllItem.command = {
+            command: 'copy-path-with-code.selectAllFiles',
+            title: 'Select All Files',
+            arguments: []
+        };
+
+        const deselectAllItem = new vscode.TreeItem('Deselect All Files', vscode.TreeItemCollapsibleState.None);
+        deselectAllItem.iconPath = new vscode.ThemeIcon('close-all');
+        deselectAllItem.contextValue = 'deselectAllFiles';
+        deselectAllItem.command = {
+            command: 'copy-path-with-code.deselectAllFiles',
+            title: 'Deselect All Files',
+            arguments: []
+        };
+
         // Action buttons with VS Code built-in icons
         const confirmItem = new vscode.TreeItem(
             this.fileManagementState.mode === 'add' ? 'Confirm Add Selected' : 'Confirm Remove Selected',
@@ -438,7 +543,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
             arguments: []
         };
 
-        items.push(confirmItem, cancelItem);
+        items.push(selectAllItem, deselectAllItem, confirmItem, cancelItem);
 
         return items;
     }
@@ -458,6 +563,9 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         }
 
         const tree = this.buildFileTreeFromPaths(files);
+        // IMPORTANT: Store the current tree for "select all" functionality
+        this.currentFileTree = tree;
+
         return this.convertFileTreeToItems(tree);
     }
 
@@ -548,9 +656,9 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                     `**${node.name}**\n\nPath: ${node.path}\nClick to ${isSelected ? 'deselect' : 'select'}`
                 );
             } else {
-                // For directories in file management mode - REMOVE the command to prevent selection on click
+                // For directories in file management mode
                 item.iconPath = new vscode.ThemeIcon('folder');
-                item.contextValue = 'fileManagementDirectory'; // Keep context value for right-click menu
+                item.contextValue = 'fileManagementDirectory';
 
                 const fileCount = this.countFilesInNode(node);
 
@@ -559,7 +667,7 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
                 }
 
                 item.tooltip = new vscode.MarkdownString(
-                    `**${node.name}/**\n\nContains: ${fileCount} file(s)\nRight-click for options`
+                    `**${node.name}/**\n\nContains: ${fileCount} file(s)\nRight-click for "Select All Files in Folder"`
                 );
             }
 
@@ -946,5 +1054,9 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         }
 
         return folder.workspaceFolder === currentWorkspaceFolder.uri.fsPath;
+    }
+
+    public getFileManagementState(): FileManagementState {
+        return this.fileManagementState;
     }
 }

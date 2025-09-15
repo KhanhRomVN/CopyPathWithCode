@@ -31,13 +31,27 @@ export function registerFolderCommands(
         // Individual file copy command
         vscode.commands.registerCommand('copy-path-with-code.copyIndividualFile', (fileItem) => copyIndividualFile(fileItem)),
 
-        // New inline file management commands
+        // File management commands
         vscode.commands.registerCommand('copy-path-with-code.toggleFileSelection', (filePath: string) => {
             treeDataProvider.toggleFileSelection(filePath);
         }),
         vscode.commands.registerCommand('copy-path-with-code.confirmFileManagement', () => confirmFileManagement(context, treeDataProvider)),
         vscode.commands.registerCommand('copy-path-with-code.cancelFileManagement', () => {
             treeDataProvider.exitFileManagementMode();
+        }),
+
+        // Select/Deselect All Files commands
+        vscode.commands.registerCommand('copy-path-with-code.selectAllFiles', () => {
+            treeDataProvider.selectAllFiles();
+        }),
+        vscode.commands.registerCommand('copy-path-with-code.deselectAllFiles', () => {
+            treeDataProvider.deselectAllFiles();
+        }),
+        vscode.commands.registerCommand('copy-path-with-code.selectAllFilesInFolder', (item) => {
+            selectAllFilesInFolder(treeDataProvider, item);
+        }),
+        vscode.commands.registerCommand('copy-path-with-code.unselectAllFilesInFolder', (item) => {
+            unselectAllFilesInFolder(treeDataProvider, item);
         }),
 
         // Clipboard detection commands
@@ -65,10 +79,6 @@ export function registerFolderCommands(
         // Add refresh command for folder tree
         vscode.commands.registerCommand('copy-path-with-code.refreshFolderView', () => {
             treeDataProvider.refresh();
-        }),
-
-        vscode.commands.registerCommand('copy-path-with-code.selectAllFilesInFolder', (item) => {
-            selectAllFilesInFolder(treeDataProvider, item);
         })
     ];
 
@@ -393,8 +403,9 @@ async function startRemoveFileMode(treeDataProvider: FolderTreeDataProvider, fol
 
 async function confirmFileManagement(context: vscode.ExtensionContext, treeDataProvider: FolderTreeDataProvider) {
     const selectedFiles = treeDataProvider.getSelectedFiles();
-    const folderId = (treeDataProvider as any).fileManagementState.folderId;
-    const mode = (treeDataProvider as any).fileManagementState.mode;
+    const managementState = treeDataProvider.getFileManagementState();
+    const folderId = managementState.folderId;
+    const mode = managementState.mode;
 
     if (!folderId || mode === 'normal') {
         vscode.window.showErrorMessage('Not in file management mode');
@@ -539,8 +550,8 @@ async function deleteFolder(folderParam: any, context: vscode.ExtensionContext, 
         saveFolders(context);
 
         // Exit file management mode if we're managing this folder
-        if (treeDataProvider.isInFileManagementMode() &&
-            (treeDataProvider as any).fileManagementState.folderId === folder.id) {
+        const managementState = treeDataProvider.getFileManagementState();
+        if (treeDataProvider.isInFileManagementMode() && managementState.folderId === folder.id) {
             treeDataProvider.exitFileManagementMode();
         } else {
             treeDataProvider.refresh();
@@ -713,6 +724,7 @@ function getLanguageFromFileName(filePath: string): string {
     return languageMap[ext] || 'plaintext';
 }
 
+// Select/Deselect functions for folder-specific operations
 async function selectAllFilesInFolder(treeDataProvider: FolderTreeDataProvider, item: any) {
     if (!item || !item.treeNode) {
         vscode.window.showErrorMessage('Could not select files: Invalid folder');
@@ -729,6 +741,25 @@ async function selectAllFilesInFolder(treeDataProvider: FolderTreeDataProvider, 
     vscode.window.showInformationMessage(`Selected ${allFiles.length} files in folder`);
 }
 
+async function unselectAllFilesInFolder(treeDataProvider: FolderTreeDataProvider, item: any) {
+    if (!item || !item.treeNode) {
+        vscode.window.showErrorMessage('Could not deselect files: Invalid folder');
+        return;
+    }
+
+    const treeNode = item.treeNode;
+    const allFiles = getAllFilesFromNode(treeNode);
+    const managementState = treeDataProvider.getFileManagementState();
+
+    allFiles.forEach(filePath => {
+        managementState.selectedFiles.delete(filePath);
+    });
+
+    treeDataProvider.refresh();
+    vscode.window.showInformationMessage(`Deselected ${allFiles.length} files in folder`);
+}
+
+// Helper function to get all files from a tree node
 function getAllFilesFromNode(node: any): string[] {
     const files: string[] = [];
 

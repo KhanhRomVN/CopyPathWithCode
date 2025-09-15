@@ -142,6 +142,16 @@
         "title": "Cancel"
       },
       {
+        "command": "copy-path-with-code.selectAllFilesInFolder",
+        "title": "Select All Files",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "copy-path-with-code.unselectAllFilesInFolder",
+        "title": "Unselect All Files",
+        "icon": "$(close-all)"
+      },
+      {
         "command": "copy-path-with-code.openFile",
         "title": "Open",
         "icon": "$(go-to-file)"
@@ -292,7 +302,12 @@
         {
           "command": "copy-path-with-code.selectAllFilesInFolder",
           "when": "view == folderManager && viewItem == fileManagementDirectory",
-          "group": "inline"
+          "group": "1_selection@1"
+        },
+        {
+          "command": "copy-path-with-code.unselectAllFilesInFolder",
+          "when": "view == folderManager && viewItem == fileManagementDirectory",
+          "group": "1_selection@2"
         }
       ],
       "view/title": [
