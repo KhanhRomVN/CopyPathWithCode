@@ -254,25 +254,6 @@ async function confirmFileManagement(context: vscode.ExtensionContext, treeDataP
         return;
     }
 
-    // Show confirmation with details
-    const filesList = selectedFiles.length > 5 ?
-        `${selectedFiles.slice(0, 5).map((f: string) => path.basename(f)).join(', ')} and ${selectedFiles.length - 5} more` :
-        selectedFiles.map((f: string) => path.basename(f)).join(', ');
-
-    const actionVerb = mode === 'add' ? 'add' : 'remove';
-    const preposition = mode === 'add' ? 'to' : 'from';
-
-    const confirmed = await vscode.window.showInformationMessage(
-        `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} ${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''} ${preposition} "${folder.name}"?`,
-        {
-            modal: true,
-            detail: `Files: ${filesList}`
-        },
-        'Confirm', 'Cancel'
-    );
-
-    if (confirmed !== 'Confirm') return;
-
     // Convert relative paths to URIs
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
     const selectedUris = selectedFiles.map((p: string) =>
@@ -302,6 +283,8 @@ async function confirmFileManagement(context: vscode.ExtensionContext, treeDataP
     treeDataProvider.exitFileManagementMode();
 
     // Show success message with next actions
+    const actionVerb = mode === 'add' ? 'add' : 'remove';
+    const preposition = mode === 'add' ? 'to' : 'from';
     const successMessage = `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)}ed ${operationCount} file${operationCount !== 1 ? 's' : ''} ${preposition} "${folder.name}"`;
 
     const nextAction = await vscode.window.showInformationMessage(

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { state, Folder } from '../models/models';
 import { TreeItemConverter } from './treeItemConverter';
-import { TreeBuilder } from './treeStructures';
+import { TreeBuilder, TreeNode } from './treeStructures';
 import { FileManagement } from './fileManagement';
 import { SearchFilter } from './searchFilter';
 import { ViewMode } from './treeStructures';
@@ -61,6 +61,16 @@ export class FolderTreeDataProvider implements vscode.TreeDataProvider<vscode.Tr
         if ((element as any).isFileManagementHeader) {
             const fileTree = await this.fileManagement.getFileManagementFiles();
             return TreeItemConverter.convertFileTreeToItems(fileTree, this.fileManagement.getFileManagementState());
+        }
+
+        // If element has a treeNode, then it's a node in the file tree
+        const treeNode = (element as any).treeNode;
+        if (treeNode) {
+            // If it's a directory, get its children and convert to items
+            if (!treeNode.isFile) {
+                const children = Array.from(treeNode.children.values()) as TreeNode[];
+                return TreeItemConverter.convertFileTreeToItems(children, this.fileManagement.getFileManagementState());
+            }
         }
 
         return [];
