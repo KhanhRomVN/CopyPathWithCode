@@ -21,7 +21,9 @@
     "path",
     "content",
     "clipboard",
-    "file"
+    "file",
+    "search",
+    "folder"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -216,6 +218,18 @@
         "command": "copy-path-with-code.toggleViewMode",
         "title": "Toggle View Mode",
         "icon": "$(eye)"
+      },
+      {
+        "command": "copy-path-with-code.showSearchInput",
+        "title": "Search Files & Folders",
+        "icon": "$(search)",
+        "category": "Copy Path with Code"
+      },
+      {
+        "command": "copy-path-with-code.clearSearch",
+        "title": "Clear Search Filter",
+        "icon": "$(clear-all)",
+        "category": "Copy Path with Code"
       }
     ],
     "keybindings": [
@@ -260,6 +274,12 @@
         "command": "copy-path-with-code.restoreClipboardFromTemp",
         "key": "ctrl+alt+e",
         "mac": "cmd+alt+e"
+      },
+      {
+        "command": "copy-path-with-code.showSearchInput",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "view == folderManager"
       }
     ],
     "viewsContainers": {
@@ -340,6 +360,16 @@
           "type": "boolean",
           "default": false,
           "description": "Expand directories by default when opening folder"
+        },
+        "copyPathWithCode.searchCaseSensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable case-sensitive search for files and folders"
+        },
+        "copyPathWithCode.searchIncludeExtensions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include file extensions in search results"
         }
       }
     },
@@ -368,6 +398,15 @@
         "defaults": {
           "dark": "#FF9800",
           "light": "#F57C00",
+          "highContrast": "#FFFF00"
+        }
+      },
+      {
+        "id": "copyPathWithCode.searchHighlight",
+        "description": "Color for search result highlights",
+        "defaults": {
+          "dark": "#FFC107",
+          "light": "#FF8F00",
           "highContrast": "#FFFF00"
         }
       }
