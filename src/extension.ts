@@ -8,7 +8,6 @@ import { ClipboardTreeDataProvider } from './providers/clipboardTreeDataProvider
 import { Logger } from './utils/logger';
 import { checkClipboardIntegrity } from './utils/clipboardUtils';
 import { FileWatcher } from './utils/fileWatcher';
-import { validateFolderFiles } from './utils/folderValidation';
 
 let clipboardMonitoringInterval: NodeJS.Timeout | undefined;
 
@@ -19,11 +18,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     loadFolders(context);
     Logger.debug(`Loaded ${state.folders.length} folders from storage`);
-
-    // VALIDATE FILES EXISTENCE ON STARTUP
-    validateFolderFiles(context).then(() => {
-        Logger.info('Validated folder files existence on startup');
-    });
 
     // Initialize file watcher for tracking deleted files
     const fileWatcher = FileWatcher.init(context);
