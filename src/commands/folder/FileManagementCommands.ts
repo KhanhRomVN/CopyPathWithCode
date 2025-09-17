@@ -1,10 +1,3 @@
-/**
- * FILE: src/commands/folder/FileManagementCommands.ts
- * 
- * FILE MANAGEMENT COMMANDS - File add/remove operations
- * Fixed to properly convert relative paths to absolute URIs
- */
-
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
@@ -13,6 +6,7 @@ import { FolderProvider } from '../../providers/FolderProvider';
 import { IWorkspaceService } from '../../infrastructure/folder/workspace/WorkspaceService';
 import { INotificationService } from '../../application/folder/service/FolderApplicationService';
 import { IEditorService } from '../../infrastructure/folder/ui/EditorService';
+import { CommandRegistry } from '../../utils/common/CommandRegistry';
 
 export function registerFileManagementCommands(context: vscode.ExtensionContext): void {
     const container = ServiceContainer.getInstance();
@@ -22,56 +16,123 @@ export function registerFileManagementCommands(context: vscode.ExtensionContext)
     const notificationService = container.resolve<INotificationService>('INotificationService');
     const editorService = container.resolve<IEditorService>('IEditorService');
 
+    // Use CommandRegistry for all commands to prevent duplicates
     const commands = [
         // File Management Commands
-        vscode.commands.registerCommand('copy-path-with-code.addFileToFolder', (folderItem) =>
-            handleAddFileToFolder(commandHandler, treeDataProvider, folderItem, workspaceService, notificationService)
-        ),
+        {
+            command: 'copy-path-with-code.addFileToFolder',
+            handler: (folderItem: any) => handleAddFileToFolder(commandHandler, treeDataProvider, folderItem, workspaceService, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.removeFileFromFolder',
+            handler: (folderItem: any) => handleRemoveFileFromFolder(commandHandler, treeDataProvider, folderItem, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.openFolderFiles',
+            handler: (folderItem: any) => handleOpenFolderFiles(commandHandler, folderItem, editorService, notificationService)
+        },
 
-        vscode.commands.registerCommand('copy-path-with-code.removeFileFromFolder', (folderItem) =>
-            handleRemoveFileFromFolder(commandHandler, treeDataProvider, folderItem, notificationService)
-        ),
-
-        vscode.commands.registerCommand('copy-path-with-code.openFolderFiles', (folderItem) =>
-            handleOpenFolderFiles(commandHandler, folderItem, editorService, notificationService)
-        ),
-
-        // File Selection Commands
-        vscode.commands.registerCommand('copy-path-with-code.toggleFileSelection', (filePath: string) => {
-            treeDataProvider.toggleFileSelection(filePath);
-        }),
-
-        vscode.commands.registerCommand('copy-path-with-code.selectAllFiles', () => {
-            treeDataProvider.selectAllFiles();
-        }),
-
-        vscode.commands.registerCommand('copy-path-with-code.deselectAllFiles', () => {
-            treeDataProvider.deselectAllFiles();
-        }),
-
-        vscode.commands.registerCommand('copy-path-with-code.selectAllFilesInFolder', (folderItem) => {
-            handleSelectAllFilesInFolder(treeDataProvider, folderItem, notificationService);
-        }),
-
-        vscode.commands.registerCommand('copy-path-with-code.unselectAllFilesInFolder', (folderItem) => {
-            handleUnselectAllFilesInFolder(treeDataProvider, folderItem, notificationService);
-        }),
+        // File Selection Commands - CRITICAL: These must be registered properly
+        {
+            command: 'copy-path-with-code.toggleFileSelection',
+            handler: (filePath: string) => handleToggleFileSelection(treeDataProvider, filePath, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.selectAllFiles',
+            handler: () => handleSelectAllFiles(treeDataProvider, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.deselectAllFiles',
+            handler: () => handleDeselectAllFiles(treeDataProvider, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.selectAllFilesInFolder',
+            handler: (folderItem: any) => handleSelectAllFilesInFolder(treeDataProvider, folderItem, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.unselectAllFilesInFolder',
+            handler: (folderItem: any) => handleUnselectAllFilesInFolder(treeDataProvider, folderItem, notificationService)
+        },
 
         // File Management Mode Commands
-        vscode.commands.registerCommand('copy-path-with-code.confirmFileManagement', () =>
-            handleConfirmFileManagement(commandHandler, treeDataProvider, workspaceService, notificationService)
-        ),
-
-        vscode.commands.registerCommand('copy-path-with-code.cancelFileManagement', () => {
-            handleCancelFileManagement(treeDataProvider, notificationService);
-        })
+        {
+            command: 'copy-path-with-code.confirmFileManagement',
+            handler: () => handleConfirmFileManagement(commandHandler, treeDataProvider, workspaceService, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.cancelFileManagement',
+            handler: () => handleCancelFileManagement(treeDataProvider, notificationService)
+        }
     ];
 
-    commands.forEach(cmd => context.subscriptions.push(cmd));
+    // Register all commands using CommandRegistry
+    commands.forEach(({ command, handler }) => {
+        CommandRegistry.registerCommand(context, command, handler);
+    });
 }
 
 // =============================================
-// FILE MANAGEMENT COMMAND HANDLERS
+// FILE SELECTION HANDLERS - FIXED VERSIONS
+// =============================================
+
+function handleToggleFileSelection(
+    treeDataProvider: FolderProvider,
+    filePath: string,
+    notificationService: INotificationService
+): void {
+    if (!filePath) {
+        notificationService.showError('Invalid file path for selection');
+        return;
+    }
+
+    // Toggle selection WITHOUT refreshing the tree to prevent collapse
+    treeDataProvider.toggleFileSelection(filePath);
+
+    // Show feedback without triggering tree refresh
+    const selectedCount = treeDataProvider.getSelectedFiles().length;
+
+    // Use status bar or minimal notification instead of full notification
+    console.log(`File selection toggled: ${filePath} (${selectedCount} files selected)`);
+
+    // Optional: Show a brief status message that doesn't interfere
+    if (selectedCount === 1) {
+        // Only show message for first selection
+        notificationService.showInfo(`${selectedCount} file selected`);
+    }
+}
+
+function handleSelectAllFiles(
+    treeDataProvider: FolderProvider,
+    notificationService: INotificationService
+): void {
+    const previousCount = treeDataProvider.getSelectedFiles().length;
+    treeDataProvider.selectAllFiles();
+    const newCount = treeDataProvider.getSelectedFiles().length;
+    const addedCount = newCount - previousCount;
+
+    if (addedCount > 0) {
+        notificationService.showInfo(`Selected ${addedCount} additional files (${newCount} total)`);
+    } else {
+        notificationService.showInfo('All files are already selected');
+    }
+}
+
+function handleDeselectAllFiles(
+    treeDataProvider: FolderProvider,
+    notificationService: INotificationService
+): void {
+    const previousCount = treeDataProvider.getSelectedFiles().length;
+    treeDataProvider.deselectAllFiles();
+
+    if (previousCount > 0) {
+        notificationService.showInfo(`Deselected ${previousCount} files`);
+    } else {
+        notificationService.showInfo('No files were selected');
+    }
+}
+
+// =============================================
+// EXISTING HANDLERS - UNCHANGED
 // =============================================
 
 async function handleAddFileToFolder(
@@ -101,7 +162,7 @@ async function handleAddFileToFolder(
 
     // Enter file management mode
     treeDataProvider.enterFileManagementMode(folderId, 'add');
-    notificationService.showInfo('Adding files to folder. Select files in the sidebar and click "Confirm Add Selected".');
+    notificationService.showInfo('Adding files to folder. Click files to select/deselect them, then click "Confirm Add Selected".');
 }
 
 async function handleRemoveFileFromFolder(
@@ -124,7 +185,7 @@ async function handleRemoveFileFromFolder(
 
     // Enter file management mode
     treeDataProvider.enterFileManagementMode(folderId, 'remove');
-    notificationService.showInfo('Removing files from folder. Select files in the sidebar and click "Confirm Remove Selected".');
+    notificationService.showInfo('Removing files from folder. Click files to select/deselect them, then click "Confirm Remove Selected".');
 }
 
 async function handleOpenFolderFiles(

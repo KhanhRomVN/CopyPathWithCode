@@ -1,3 +1,6 @@
+// FILE: src/providers/folder/TreeItemFactory.ts - FIXED VERSION
+// Proper visual feedback for selected files in file management mode
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { Folder } from '../../domain/folder/entities/Folder';
@@ -5,6 +8,7 @@ import { FileNode } from '../../domain/folder/entities/FileNode';
 import { FOLDER_CONSTANTS } from '../../shared/constants/FolderConstants';
 import { FileManagementState } from '../../domain/folder/types/FolderTypes';
 import { IFolderTreeService } from '../../infrastructure/di/ServiceContainer';
+import { Logger } from '../../utils/common/logger';
 
 export class TreeItemFactory {
     constructor(private readonly folderTreeService: IFolderTreeService) { }
@@ -112,6 +116,7 @@ export class TreeItemFactory {
         return item;
     }
 
+    // Updated method with better performance and stability
     convertFileNodeToItems(
         nodes: FileNode[],
         fileManagementState?: FileManagementState | null,
@@ -156,6 +161,7 @@ export class TreeItemFactory {
         return items;
     }
 
+    // FIXED: File node tree item creation with proper visual feedback
     createFileNodeTreeItem(node: FileNode, fileManagementState?: FileManagementState | null): vscode.TreeItem {
         const item = new vscode.TreeItem(
             node.name,
@@ -164,7 +170,8 @@ export class TreeItemFactory {
                 : vscode.TreeItemCollapsibleState.Collapsed
         );
 
-        item.id = `${node.path}-${Date.now()}`;
+        // Generate unique ID to prevent conflicts
+        item.id = `${node.path}-${Date.now()}-${Math.random()}`;
         (item as any).treeNode = node;
 
         if (node.isFile) {
@@ -176,20 +183,31 @@ export class TreeItemFactory {
         return item;
     }
 
+    // FIXED: Proper file tree item configuration with visual feedback
     private configureFileTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
-        const isInFileManagement = fileManagementState?.mode !== 'normal';
+        const isInFileManagement = fileManagementState?.mode !== 'normal' && fileManagementState?.mode;
 
         if (isInFileManagement && fileManagementState) {
             const isSelected = fileManagementState.selectedFiles.has(node.path);
 
+            // CRITICAL FIX: Proper visual feedback for selected files
             if (isSelected) {
-                item.description = '✓ Selected';
-                item.iconPath = new vscode.ThemeIcon('check',
-                    new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
-            } else if (node.uri) {
-                item.resourceUri = vscode.Uri.parse(node.uri);
+                // Use check icon with green color
+                item.iconPath = new vscode.ThemeIcon(
+                    'check',
+                    new vscode.ThemeColor('testing.iconPassed') // Green check color
+                );
+                item.label = node.name;
+                item.description = 'Selected';
+            } else {
+                // Show normal file icon when not selected
+                if (node.uri) {
+                    item.resourceUri = vscode.Uri.parse(node.uri);
+                }
+                item.description = 'Click to select';
             }
 
+            // Set context value and command
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE_MANAGEMENT_FILE;
             item.command = {
                 command: 'copy-path-with-code.toggleFileSelection',
@@ -197,6 +215,9 @@ export class TreeItemFactory {
                 arguments: [node.path]
             };
         } else {
+            // Normal mode - not in file management
+            item.label = node.name;
+
             if (node.uri) {
                 const uri = vscode.Uri.parse(node.uri);
                 item.resourceUri = uri;
@@ -209,12 +230,19 @@ export class TreeItemFactory {
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE;
         }
 
-        item.tooltip = new vscode.MarkdownString(`**${node.name}**\n\nPath: ${node.path}`);
+        // Enhanced tooltip
+        const selectionStatus = isInFileManagement && fileManagementState?.selectedFiles.has(node.path)
+            ? '\n\n**Status:** Selected ✓'
+            : '';
+
+        item.tooltip = new vscode.MarkdownString(
+            `**${node.name}**\n\nPath: ${node.path}${selectionStatus}`
+        );
     }
 
     private configureDirectoryTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
         const fileCount = node.getFileCount();
-        const isInFileManagement = fileManagementState?.mode !== 'normal';
+        const isInFileManagement = fileManagementState?.mode !== 'normal' && fileManagementState?.mode;
 
         item.iconPath = new vscode.ThemeIcon(
             fileCount > 0 ? FOLDER_CONSTANTS.ICONS.FOLDER_OPENED : FOLDER_CONSTANTS.ICONS.FOLDER

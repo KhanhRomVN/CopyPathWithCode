@@ -1,49 +1,85 @@
 /**
  * FILE: src/utils/common/CommandRegistry.ts
  * 
- * COMMAND REGISTRY UTILITY
+ * COMMAND REGISTRY - Prevents duplicate command registrations
  * 
- * Prevents duplicate command registration by tracking registered commands
+ * This utility class tracks registered commands to prevent VSCode errors
+ * when the same command is registered multiple times.
  */
 
 import * as vscode from 'vscode';
-import { Logger } from './logger';
 
 export class CommandRegistry {
-    private static registeredCommands = new Set<string>();
+    private static registeredCommands: Set<string> = new Set();
 
+    /**
+     * Register a command if it hasn't been registered already
+     */
     static registerCommand(
         context: vscode.ExtensionContext,
         command: string,
-        callback: (...args: any[]) => any,
-        thisArg?: any
+        handler: (...args: any[]) => any
     ): void {
         if (this.registeredCommands.has(command)) {
-            Logger.warn(`Command '${command}' is already registered. Skipping duplicate registration.`);
+            console.warn(`Command already registered: ${command}. Skipping duplicate registration.`);
             return;
         }
 
-        try {
-            const disposable = vscode.commands.registerCommand(command, callback, thisArg);
-            context.subscriptions.push(disposable);
-            this.registeredCommands.add(command);
-            Logger.debug(`Successfully registered command: ${command}`);
-        } catch (error) {
-            Logger.error(`Failed to register command '${command}'`, error);
-            throw error;
-        }
+        const disposable = vscode.commands.registerCommand(command, handler);
+        context.subscriptions.push(disposable);
+        this.registeredCommands.add(command);
+
+        console.log(`✓ Registered command: ${command}`);
     }
 
+    /**
+     * Register a text editor command if it hasn't been registered already
+     */
+    static registerTextEditorCommand(
+        context: vscode.ExtensionContext,
+        command: string,
+        handler: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void
+    ): void {
+        if (this.registeredCommands.has(command)) {
+            console.warn(`Text editor command already registered: ${command}. Skipping duplicate registration.`);
+            return;
+        }
+
+        const disposable = vscode.commands.registerTextEditorCommand(command, handler);
+        context.subscriptions.push(disposable);
+        this.registeredCommands.add(command);
+
+        console.log(`✓ Registered text editor command: ${command}`);
+    }
+
+    /**
+     * Check if a command has been registered
+     */
     static isRegistered(command: string): boolean {
         return this.registeredCommands.has(command);
     }
 
+    /**
+     * Get all registered commands
+     */
     static getRegisteredCommands(): string[] {
         return Array.from(this.registeredCommands);
     }
 
+    /**
+     * Clear the registry (useful for testing or when deactivating extension)
+     */
     static clear(): void {
         this.registeredCommands.clear();
-        Logger.debug('Command registry cleared');
+    }
+
+    /**
+     * Get registration statistics
+     */
+    static getStats(): { total: number; commands: string[] } {
+        return {
+            total: this.registeredCommands.size,
+            commands: Array.from(this.registeredCommands).sort()
+        };
     }
 }
