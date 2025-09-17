@@ -1,5 +1,5 @@
-// FILE: src/providers/FolderProvider.ts - FIXED VERSION
-// Prevents auto-collapse when selecting files
+// FILE: src/providers/FolderProvider.ts - NULL REFRESH SOLUTION
+// Uses null refresh to update TreeItem icons without collapsing tree structure
 
 import * as vscode from 'vscode';
 import { IFolderTreeService } from '../infrastructure/di/ServiceContainer';
@@ -12,7 +12,7 @@ import { ViewModeManager } from './folder/ViewModeManager';
 import { Logger } from '../utils/common/logger';
 
 export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
-    private _onDidChange = new vscode.EventEmitter<vscode.TreeItem | undefined>();
+    private _onDidChange = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChange.event;
 
     // Managers
@@ -35,8 +35,10 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         this.cacheManager = new CacheManager();
         this.viewModeManager = new ViewModeManager();
 
-        // Setup refresh triggers
-        this.setupRefreshTriggers();
+        // SOLUTION: Connect FileManagementStateManager to use null refresh
+        this.fileManagementStateManager.setSelectionChangeEmitter(this._onDidChange);
+
+        Logger.debug('FolderProvider initialized with null refresh solution');
     }
 
     // Set tree view reference for expansion management
@@ -71,12 +73,12 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     // File Management Mode methods
     enterFileManagementMode(folderId: string, mode: 'add' | 'remove'): void {
         this.fileManagementStateManager.enterFileManagementMode(folderId, mode);
-        this.refresh(); // This is OK because we're changing modes
+        this.refresh(); // Full refresh when changing modes
     }
 
     exitFileManagementMode(): void {
         this.fileManagementStateManager.exitFileManagementMode();
-        this.refresh(); // This is OK because we're changing modes
+        this.refresh(); // Full refresh when changing modes
     }
 
     isInFileManagementMode(): boolean {
@@ -87,31 +89,26 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         return this.fileManagementStateManager.getState();
     }
 
-    // CRITICAL FIX: File Selection methods - NO REFRESH TO PREVENT COLLAPSE
+    // SOLUTION: File Selection methods using null refresh
     toggleFileSelection(filePath: string): void {
-        Logger.debug(`Toggling file selection: ${filePath}`);
+        Logger.debug(`FolderProvider.toggleFileSelection: ${filePath}`);
+
+        // The FileManagementStateManager handles the state change and triggers null refresh
         this.fileManagementStateManager.toggleFileSelection(filePath);
 
-        // DO NOT call refresh() here - this causes the collapse issue
-        // Instead, just log the change
-        const selectedCount = this.getSelectedFiles().length;
-        Logger.debug(`File selection updated. Total selected: ${selectedCount}`);
+        // No additional refresh needed - null refresh from FileManagementStateManager handles it
     }
 
     selectAllFiles(): void {
-        Logger.debug('Selecting all files');
+        Logger.debug('FolderProvider.selectAllFiles');
         this.fileManagementStateManager.selectAllFiles();
-
-        // Use a minimal refresh approach that batches changes
-        this.batchedRefresh();
+        // FileManagementStateManager handles null refresh
     }
 
     deselectAllFiles(): void {
-        Logger.debug('Deselecting all files');
+        Logger.debug('FolderProvider.deselectAllFiles');
         this.fileManagementStateManager.deselectAllFiles();
-
-        // Use a minimal refresh approach that batches changes  
-        this.batchedRefresh();
+        // FileManagementStateManager handles null refresh
     }
 
     getSelectedFiles(): string[] {
@@ -119,43 +116,15 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     }
 
     selectAllFilesInFolder(folderId: string): number {
-        const count = this.fileManagementStateManager.selectAllFilesInFolder(folderId);
-
-        // Use batched refresh to prevent multiple rapid updates
-        this.batchedRefresh();
-        return count;
+        const result = this.fileManagementStateManager.selectAllFilesInFolder(folderId);
+        // FileManagementStateManager handles null refresh
+        return result;
     }
 
     unselectAllFilesInFolder(folderId: string): number {
-        const count = this.fileManagementStateManager.unselectAllFilesInFolder(folderId);
-
-        // Use batched refresh to prevent multiple rapid updates
-        this.batchedRefresh();
-        return count;
-    }
-
-    // NEW: Batched refresh to prevent collapse during rapid selection changes
-    private batchedRefreshTimer: NodeJS.Timeout | undefined;
-    private batchedRefresh(): void {
-        // Clear existing timer
-        if (this.batchedRefreshTimer) {
-            clearTimeout(this.batchedRefreshTimer);
-        }
-
-        // Set new timer - only refresh after 200ms of no changes
-        this.batchedRefreshTimer = setTimeout(() => {
-            if (this.isInFileManagementMode()) {
-                Logger.debug('Executing batched refresh for file selection');
-
-                // Clear cache but don't fire full refresh
-                this.cacheManager.clearCache();
-
-                // Only fire refresh if we absolutely must
-                // In practice, we could implement more granular updates here
-                this._onDidChange.fire(undefined);
-            }
-            this.batchedRefreshTimer = undefined;
-        }, 200);
+        const result = this.fileManagementStateManager.unselectAllFilesInFolder(folderId);
+        // FileManagementStateManager handles null refresh
+        return result;
     }
 
     // Search methods
@@ -165,7 +134,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
 
     setSearchFilter(searchTerm: string): { totalMatches: number; fileMatches: number; folderMatches: number } {
         const results = this.searchManager.setSearchFilter(searchTerm, this.folderTreeService, this.viewModeManager.getViewMode());
-        this.refresh(); // This is OK because we're changing search filter
+        this.refresh(); // Full refresh for search changes
         return results;
     }
 
@@ -175,7 +144,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
 
     clearSearch(): void {
         this.searchManager.clearSearch();
-        this.refresh(); // This is OK because we're changing search filter
+        this.refresh(); // Full refresh for search changes
     }
 
     // Cache methods
@@ -209,10 +178,6 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     }
 
     // Private methods
-    private setupRefreshTriggers(): void {
-        // Setup any additional refresh triggers if needed
-    }
-
     private async getWorkspaceChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
         Logger.debug('getWorkspaceChildren called', { element: element?.label });
 
@@ -275,6 +240,23 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     private async expandDirectory(elementAny: any): Promise<vscode.TreeItem[]> {
         const cacheKey = `${this.viewModeManager.getViewMode()}-${elementAny.folderId}-${elementAny.treeNode.path}`;
 
+        // SOLUTION: Don't use cache during file management to ensure fresh TreeItems with correct selection state
+        if (this.isInFileManagementMode()) {
+            try {
+                const folder = this.folderTreeService.getFolderById(elementAny.folderId);
+                return this.treeItemFactory.convertFileNodeToTreeItems(
+                    elementAny.treeNode.getChildrenArray(),
+                    folder,
+                    this.fileManagementStateManager.getState(),
+                    this.searchManager.getCurrentSearchTerm() || undefined
+                );
+            } catch (error) {
+                Logger.error(`Failed to expand directory: ${elementAny.treeNode.path}`, error);
+                return [];
+            }
+        }
+
+        // Use cache only in normal mode
         if (this.cacheManager.has(cacheKey)) {
             return this.cacheManager.get(cacheKey)!;
         }
@@ -284,7 +266,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
             const items = this.treeItemFactory.convertFileNodeToTreeItems(
                 elementAny.treeNode.getChildrenArray(),
                 folder,
-                null, // No file management state
+                null, // No file management state in normal mode
                 this.searchManager.getCurrentSearchTerm() || undefined
             );
             this.cacheManager.set(cacheKey, items);
@@ -298,6 +280,24 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     private async expandFolder(folderId: string): Promise<vscode.TreeItem[]> {
         const cacheKey = `${this.viewModeManager.getViewMode()}-${folderId}-root`;
 
+        // SOLUTION: Don't use cache during file management
+        if (this.isInFileManagementMode()) {
+            try {
+                const folder = this.folderTreeService.getFolderById(folderId);
+                const fileTree = this.folderTreeService.buildFileTreeForFolder(folderId);
+                return this.treeItemFactory.convertFileNodeToTreeItems(
+                    fileTree,
+                    folder,
+                    this.fileManagementStateManager.getState(),
+                    this.searchManager.getCurrentSearchTerm() || undefined
+                );
+            } catch (error) {
+                Logger.error(`Failed to expand folder: ${folderId}`, error);
+                return [];
+            }
+        }
+
+        // Use cache only in normal mode
         if (this.cacheManager.has(cacheKey)) {
             return this.cacheManager.get(cacheKey)!;
         }
@@ -308,7 +308,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
             const items = this.treeItemFactory.convertFileNodeToTreeItems(
                 fileTree,
                 folder,
-                null, // No file management state
+                null, // No file management state in normal mode
                 this.searchManager.getCurrentSearchTerm() || undefined
             );
 
@@ -318,5 +318,11 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
             Logger.error(`Failed to expand folder: ${folderId}`, error);
             return [];
         }
+    }
+
+    // Cleanup
+    dispose(): void {
+        this.fileManagementStateManager.dispose();
+        this.cacheManager.clearCache();
     }
 }

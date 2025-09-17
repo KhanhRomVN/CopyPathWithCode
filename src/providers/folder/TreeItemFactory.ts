@@ -1,5 +1,5 @@
-// FILE: src/providers/folder/TreeItemFactory.ts - FIXED VERSION
-// Proper visual feedback for selected files in file management mode
+// FILE: src/providers/folder/TreeItemFactory.ts - STABLE ID VERSION
+// Creates stable TreeItem IDs to enable proper refresh without tree collapse
 
 import * as vscode from 'vscode';
 import * as path from 'path';
@@ -9,6 +9,7 @@ import { FOLDER_CONSTANTS } from '../../shared/constants/FolderConstants';
 import { FileManagementState } from '../../domain/folder/types/FolderTypes';
 import { IFolderTreeService } from '../../infrastructure/di/ServiceContainer';
 import { Logger } from '../../utils/common/logger';
+import * as crypto from 'crypto';
 
 export class TreeItemFactory {
     constructor(private readonly folderTreeService: IFolderTreeService) { }
@@ -88,6 +89,9 @@ export class TreeItemFactory {
             vscode.TreeItemCollapsibleState.Expanded
         );
 
+        // STABLE ID for header
+        headerItem.id = `filemgmt-header-${folder.id}-${mode}`;
+
         headerItem.iconPath = new vscode.ThemeIcon(
             mode === 'add'
                 ? FOLDER_CONSTANTS.ICONS.FOLDER_OPENED
@@ -106,6 +110,10 @@ export class TreeItemFactory {
         command: string
     ): vscode.TreeItem {
         const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+
+        // STABLE ID for action buttons
+        item.id = `action-${contextValue}-${this.createHashFromString(label)}`;
+
         item.iconPath = new vscode.ThemeIcon(icon);
         item.contextValue = contextValue;
         item.command = {
@@ -116,7 +124,6 @@ export class TreeItemFactory {
         return item;
     }
 
-    // Updated method with better performance and stability
     convertFileNodeToItems(
         nodes: FileNode[],
         fileManagementState?: FileManagementState | null,
@@ -153,7 +160,7 @@ export class TreeItemFactory {
         }
 
         for (const node of sortedNodes) {
-            const item = this.createFileNodeTreeItem(node, fileManagementState);
+            const item = this.createFileNodeTreeItem(node, fileManagementState, folder.id);
             (item as any).folderId = folder.id;
             items.push(item);
         }
@@ -161,8 +168,12 @@ export class TreeItemFactory {
         return items;
     }
 
-    // FIXED: File node tree item creation with proper visual feedback
-    createFileNodeTreeItem(node: FileNode, fileManagementState?: FileManagementState | null): vscode.TreeItem {
+    // SOLUTION: Create stable TreeItem with predictable ID
+    createFileNodeTreeItem(
+        node: FileNode,
+        fileManagementState?: FileManagementState | null,
+        folderId?: string
+    ): vscode.TreeItem {
         const item = new vscode.TreeItem(
             node.name,
             node.isFile
@@ -170,8 +181,11 @@ export class TreeItemFactory {
                 : vscode.TreeItemCollapsibleState.Collapsed
         );
 
-        // Generate unique ID to prevent conflicts
-        item.id = `${node.path}-${Date.now()}-${Math.random()}`;
+        // CRITICAL FIX: Create stable, predictable ID based on path and context
+        const idContext = folderId ? `${folderId}-` : '';
+        const mgmtContext = fileManagementState?.mode !== 'normal' ? `-${fileManagementState?.mode}` : '';
+        item.id = `${idContext}${this.createHashFromString(node.path)}${mgmtContext}`;
+
         (item as any).treeNode = node;
 
         if (node.isFile) {
@@ -183,37 +197,47 @@ export class TreeItemFactory {
         return item;
     }
 
-    // FIXED: Proper file tree item configuration with visual feedback
+    // SOLUTION: Enhanced file configuration with real-time icon updates
     private configureFileTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
         const isInFileManagement = fileManagementState?.mode !== 'normal' && fileManagementState?.mode;
 
         if (isInFileManagement && fileManagementState) {
             const isSelected = fileManagementState.selectedFiles.has(node.path);
 
-            // CRITICAL FIX: Proper visual feedback for selected files
+            // ENHANCED: Dynamic icon and label based on selection state
             if (isSelected) {
-                // Use check icon with green color
+                // Show selected state with check icon
                 item.iconPath = new vscode.ThemeIcon(
                     'check',
                     new vscode.ThemeColor('testing.iconPassed') // Green check color
                 );
-                item.label = node.name;
-                item.description = 'Selected';
+                item.description = '✓ Selected';
+
+                // Optional: Modify label to show selection
+                // item.label = `${node.name} ✓`;
             } else {
-                // Show normal file icon when not selected
+                // Show unselected state with normal file icon
                 if (node.uri) {
                     item.resourceUri = vscode.Uri.parse(node.uri);
+                    // Let VS Code determine the file icon based on extension
+                } else {
+                    item.iconPath = new vscode.ThemeIcon('file');
                 }
                 item.description = 'Click to select';
             }
 
-            // Set context value and command
+            // Set context value and command for file management
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE_MANAGEMENT_FILE;
             item.command = {
                 command: 'copy-path-with-code.toggleFileSelection',
                 title: 'Toggle Selection',
                 arguments: [node.path]
             };
+
+            // Enhanced tooltip with selection info
+            item.tooltip = new vscode.MarkdownString(
+                `**${node.name}**\n\nPath: ${node.path}\n\n**Selection:** ${isSelected ? 'Selected ✓' : 'Not selected'}\n\n*Click to ${isSelected ? 'deselect' : 'select'}*`
+            );
         } else {
             // Normal mode - not in file management
             item.label = node.name;
@@ -228,16 +252,12 @@ export class TreeItemFactory {
                 };
             }
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE;
+
+            // Standard tooltip
+            item.tooltip = new vscode.MarkdownString(
+                `**${node.name}**\n\nPath: ${node.path}`
+            );
         }
-
-        // Enhanced tooltip
-        const selectionStatus = isInFileManagement && fileManagementState?.selectedFiles.has(node.path)
-            ? '\n\n**Status:** Selected ✓'
-            : '';
-
-        item.tooltip = new vscode.MarkdownString(
-            `**${node.name}**\n\nPath: ${node.path}${selectionStatus}`
-        );
     }
 
     private configureDirectoryTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
@@ -300,5 +320,10 @@ export class TreeItemFactory {
         }
 
         return FileNode.sortNodes(filtered);
+    }
+
+    // SOLUTION: Helper method to create consistent hash-based IDs
+    private createHashFromString(input: string): string {
+        return crypto.createHash('md5').update(input).digest('hex').substring(0, 8);
     }
 }

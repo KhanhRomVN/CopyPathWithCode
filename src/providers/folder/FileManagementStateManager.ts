@@ -1,5 +1,5 @@
-// FILE: src/providers/folder/FileManagementStateManager.ts
-// Fixed version to prevent auto-collapse when selecting files
+// FILE: src/providers/folder/FileManagementStateManager.ts - SOLUTION VERSION
+// Uses TreeItem ID-based refresh to update icons without collapsing tree
 
 import * as vscode from 'vscode';
 import * as path from 'path';
@@ -7,7 +7,7 @@ import { FOLDER_CONSTANTS } from '../../shared/constants/FolderConstants';
 import { FileManagementState } from '../../domain/folder/types/FolderTypes';
 import { FileNode } from '../../domain/folder/entities/FileNode';
 import { IFolderTreeService } from '../../infrastructure/di/ServiceContainer';
-import { TreeItemFactory } from './TreeItemFactory';
+import { TreeItemFactory } from '../../providers/folder/TreeItemFactory';
 import { Logger } from '../../utils/common/logger';
 
 export class FileManagementStateManager {
@@ -19,9 +19,16 @@ export class FileManagementStateManager {
     };
 
     private currentFileTree: FileNode[] = [];
-    private expansionStateBeforeSelection: Set<string> = new Set();
+
+    // SOLUTION: Use targeted refresh emitter instead of full tree refresh
+    private selectionChangeEmitter: vscode.EventEmitter<vscode.TreeItem | undefined | null | void> | undefined;
 
     constructor(private readonly folderTreeService: IFolderTreeService) { }
+
+    // Set the emitter from FolderProvider
+    setSelectionChangeEmitter(emitter: vscode.EventEmitter<vscode.TreeItem | undefined | null | void>): void {
+        this.selectionChangeEmitter = emitter;
+    }
 
     getState(): FileManagementState {
         return this.fileManagementState;
@@ -32,9 +39,6 @@ export class FileManagementStateManager {
     }
 
     enterFileManagementMode(folderId: string, mode: 'add' | 'remove'): void {
-        // Save current expansion state before entering file management mode
-        this.saveExpansionState();
-
         this.fileManagementState = {
             mode,
             folderId,
@@ -42,7 +46,7 @@ export class FileManagementStateManager {
             selectedFolders: new Set()
         };
 
-        // Pre-select existing files in 'remove' mode (not 'add')
+        // Pre-select existing files in 'remove' mode
         if (mode === 'remove') {
             this.preselectExistingFiles(folderId);
         }
@@ -56,19 +60,45 @@ export class FileManagementStateManager {
             selectedFolders: new Set()
         };
         this.currentFileTree = [];
-        this.expansionStateBeforeSelection.clear();
     }
 
-    // Modified to prevent unnecessary refresh that causes collapse
+    // SOLUTION: Use null refresh to trigger TreeItem recreation without tree collapse
     toggleFileSelection(filePath: string): void {
-        if (this.fileManagementState.selectedFiles.has(filePath)) {
+        const wasSelected = this.fileManagementState.selectedFiles.has(filePath);
+
+        if (wasSelected) {
             this.fileManagementState.selectedFiles.delete(filePath);
             Logger.debug(`Deselected file: ${filePath}`);
         } else {
             this.fileManagementState.selectedFiles.add(filePath);
             Logger.debug(`Selected file: ${filePath}`);
         }
-        vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
+
+        // CRITICAL FIX: Use null refresh to update TreeItems without collapsing
+        if (this.selectionChangeEmitter) {
+            this.selectionChangeEmitter.fire(null);
+        }
+
+        // Update status bar feedback
+        this.showSelectionFeedback(filePath, !wasSelected);
+
+        // Update VS Code context for conditional commands
+        const selectedCount = this.getSelectedFiles().length;
+        vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasSelectedFiles', selectedCount > 0);
+
+        Logger.debug(`Selection updated. Total selected: ${selectedCount}`);
+    }
+
+    // Provide immediate visual feedback
+    private showSelectionFeedback(filePath: string, isSelected: boolean): void {
+        const fileName = path.basename(filePath);
+        const selectedCount = this.getSelectedFiles().length;
+
+        // Show subtle status bar message
+        vscode.window.setStatusBarMessage(
+            `${isSelected ? 'Selected' : 'Deselected'} ${fileName} (${selectedCount} files selected)`,
+            1500 // Show for 1.5 seconds
+        );
     }
 
     selectAllFiles(): void {
@@ -80,12 +110,22 @@ export class FileManagementStateManager {
         });
 
         Logger.debug(`Selected ${this.fileManagementState.selectedFiles.size - previousCount} additional files`);
+
+        // Use null refresh for bulk operations
+        if (this.selectionChangeEmitter) {
+            this.selectionChangeEmitter.fire(null);
+        }
     }
 
     deselectAllFiles(): void {
         const previousCount = this.fileManagementState.selectedFiles.size;
         this.fileManagementState.selectedFiles.clear();
         Logger.debug(`Deselected ${previousCount} files`);
+
+        // Use null refresh for bulk operations
+        if (this.selectionChangeEmitter) {
+            this.selectionChangeEmitter.fire(null);
+        }
     }
 
     getSelectedFiles(): string[] {
@@ -108,6 +148,12 @@ export class FileManagementStateManager {
             });
 
             Logger.debug(`Selected ${addedCount} files in folder ${folder.name}`);
+
+            // Use null refresh for folder operations
+            if (this.selectionChangeEmitter) {
+                this.selectionChangeEmitter.fire(null);
+            }
+
             return addedCount;
         } catch (error) {
             Logger.error('Error selecting all files in folder:', error);
@@ -131,6 +177,12 @@ export class FileManagementStateManager {
             });
 
             Logger.debug(`Unselected ${removedCount} files in folder ${folder.name}`);
+
+            // Use null refresh for folder operations
+            if (this.selectionChangeEmitter) {
+                this.selectionChangeEmitter.fire(null);
+            }
+
             return removedCount;
         } catch (error) {
             Logger.error('Error unselecting all files in folder:', error);
@@ -147,12 +199,16 @@ export class FileManagementStateManager {
             const headerItem = treeItemFactory.createFileManagementHeader(folder, this.fileManagementState.mode as 'add' | 'remove');
             items.push(headerItem);
 
-            // Action buttons
+            // Action buttons with current selection count
+            const selectedCount = this.getSelectedFiles().length;
+
             items.push(
                 treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
                 treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
                 treeItemFactory.createActionButton(
-                    this.fileManagementState.mode === 'add' ? 'Confirm Add Selected' : 'Confirm Remove Selected',
+                    this.fileManagementState.mode === 'add'
+                        ? `Confirm Add Selected (${selectedCount})`
+                        : `Confirm Remove Selected (${selectedCount})`,
                     FOLDER_CONSTANTS.ICONS.CHECK,
                     'confirmFileManagement',
                     'copy-path-with-code.confirmFileManagement'
@@ -191,14 +247,11 @@ export class FileManagementStateManager {
         }
     }
 
-    // Save expansion state to prevent collapse
-    private saveExpansionState(): void {
-        // This would ideally save the current expansion state
-        // For now, we'll implement a simple version
-        this.expansionStateBeforeSelection.clear();
+    // Cleanup on exit
+    dispose(): void {
+        // No more timers to clean up
     }
 
-    // Fixed: Only preselect in 'remove' mode, not 'add' mode
     private preselectExistingFiles(folderId: string): void {
         try {
             const folder = this.folderTreeService.getFolderById(folderId);
