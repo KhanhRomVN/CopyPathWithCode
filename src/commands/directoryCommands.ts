@@ -1,3 +1,16 @@
+/**
+ * FILE: src/commands/directoryCommands.ts
+ * 
+ * DIRECTORY COMMANDS - LỆNH THAO TÁC VỚI THƯ MỤC
+ * 
+ * Các lệnh liên quan đến thao tác với cấu trúc thư mục trong tree view.
+ * 
+ * Chức năng chính:
+ * - expandAllDirectories: Mở rộng tất cả thư mục
+ * - collapseAllDirectories: Thu gọn tất cả thư mục
+ * - revealInExplorer: Hiển thị trong file explorer
+ */
+
 import * as vscode from 'vscode';
 import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
 

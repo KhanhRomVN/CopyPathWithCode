@@ -1,3 +1,19 @@
+/**
+ * FILE: src/providers/folderTreeDataProvider.ts
+ * 
+ * FOLDER TREE DATA PROVIDER - PROVIDER HIỂN THỊ CÂY THƯ MỤC
+ * 
+ * Provider chịu trách nhiệm hiển thị cây thư mục trong sidebar của VS Code.
+ * 
+ * Chức năng chính:
+ * - Hiển thị danh sách thư mục và file theo dạng cây
+ * - Hỗ trợ 2 chế độ view: workspace (chỉ thư mục workspace hiện tại) và global (tất cả thư mục)
+ * - Quản lý chế độ thêm/xóa file trong thư mục
+ * - Hỗ trợ select/deselect all files
+ * - Cache dữ liệu để tối ưu hiệu năng
+ * - Xử lý sự kiện expand/collapse thư mục
+ */
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state } from '../models/models';

@@ -1,3 +1,16 @@
+/**
+ * FILE: src/commands/tempClipboardCommands.ts
+ * 
+ * TEMP CLIPBOARD COMMANDS - LỆNH CLIPBOARD TẠM THỜI
+ * 
+ * Quản lý việc lưu trữ và khôi phục clipboard tạm thời.
+ * 
+ * Chức năng chính:
+ * - saveClipboardToTemp: Lưu clipboard hiện tại vào bộ nhớ tạm
+ * - restoreClipboardFromTemp: Khôi phục clipboard từ bộ nhớ tạm
+ * - updateStatusBar: Cập nhật trạng thái trên status bar
+ */
+
 import * as vscode from 'vscode';
 import { state } from '../models/models';
 import { Logger } from '../utils/logger';

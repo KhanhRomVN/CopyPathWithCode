@@ -1,3 +1,19 @@
+/**
+ * FILE: src/utils/workspaceUtils.ts
+ * 
+ * WORKSPACE UTILITIES - TIỆN ÍCH XỬ LÝ WORKSPACE
+ * 
+ * Các hàm tiện ích liên quan đến xử lý workspace trong VS Code.
+ * 
+ * Chức năng chính:
+ * - getCurrentWorkspaceFolder: Lấy đường dẫn workspace hiện tại
+ * - hasActiveWorkspace: Kiểm tra có workspace active không
+ * - isFolderFromCurrentWorkspace: Kiểm tra thư mục có từ workspace hiện tại không
+ * - getFoldersForCurrentWorkspace: Lấy danh sách thư mục của workspace hiện tại
+ * - getAllWorkspaceFolders: Lấy tất cả thư mục từ tất cả workspace
+ * - getWorkspaceDisplayName: Lấy tên hiển thị của workspace
+ */
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state, Folder } from '../models/models';

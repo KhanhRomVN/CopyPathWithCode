@@ -1,3 +1,17 @@
+/**
+ * FILE: src/utils/fileWatcher.ts
+ * 
+ * FILE WATCHER - THEO DÕI THAY ĐỔI FILE
+ * 
+ * Theo dõi sự thay đổi của file system và xử lý khi file bị xóa.
+ * 
+ * Chức năng chính:
+ * - Theo dõi sự kiện xóa file trong workspace
+ * - Tự động xóa file đã bị xóa khỏi các thư mục trong extension
+ * - Cập nhật UI khi có thay đổi
+ * - Singleton pattern để đảm bảo chỉ có 1 instance
+ */
+
 import * as vscode from 'vscode';
 import { state } from '../models/models';
 import { saveFolders } from './folderUtils';

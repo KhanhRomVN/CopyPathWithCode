@@ -1,3 +1,21 @@
+/**
+ * FILE: src/utils/clipboardUtils.ts
+ * 
+ * CLIPBOARD UTILITIES - TIỆN ÍCH XỬ LÝ CLIPBOARD
+ * 
+ * Các hàm tiện ích liên quan đến xử lý clipboard và nội dung copy.
+ * 
+ * Chức năng chính:
+ * - copyPathWithContent: Copy đường dẫn file kèm nội dung
+ * - copyPathWithContentAndError: Copy kèm thông tin lỗi
+ * - clearClipboard: Xóa clipboard
+ * - copyFolderContents: Copy toàn bộ nội dung thư mục
+ * - checkClipboardIntegrity: Kiểm tra tính toàn vẹn của clipboard
+ * - canSaveToTemp: Kiểm tra có thể lưu vào temp không
+ * - Quản lý tracking signature để nhận diện content của extension
+ */
+
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state, Folder, CopiedFile, ErrorInfo } from '../models/models';

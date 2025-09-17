@@ -1,3 +1,18 @@
+/**
+ * FILE: src/utils/folderUtils.ts
+ * 
+ * FOLDER UTILITIES - TIỆN ÍCH QUẢN LÝ THƯ MỤC
+ * 
+ * Các hàm tiện ích liên quan đến quản lý thư mục trong extension.
+ * 
+ * Chức năng chính:
+ * - loadFolders: Tải danh sách thư mục từ storage
+ * - saveFolders: Lưu danh sách thư mục vào storage
+ * - getFolderById: Lấy thư mục theo ID
+ * - addFileToFolder: Thêm file vào thư mục
+ * - removeFileFromFolder: Xóa file khỏi thư mục
+ */
+
 import * as vscode from 'vscode';
 import { state, Folder } from '../models/models';
 

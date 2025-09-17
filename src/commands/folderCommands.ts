@@ -1,3 +1,21 @@
+/**
+ * FILE: src/commands/folderCommands.ts
+ * 
+ * FOLDER COMMANDS - LỆNH QUẢN LÝ THƯ MỤC
+ * 
+ * Quản lý các thao tác với thư mục (folder) trong extension.
+ * 
+ * Chức năng chính:
+ * - createFolder: Tạo thư mục mới
+ * - addFileToFolder: Thêm file vào thư mục
+ * - removeFileFromFolder: Xóa file khỏi thư mục
+ * - openFolderFiles: Mở tất cả file trong thư mục
+ * - copyFolderContents: Copy toàn bộ nội dung thư mục
+ * - deleteFolder: Xóa thư mục
+ * - renameFolder: Đổi tên thư mục
+ * - Quản lý selection files (chọn/bỏ chọn file)
+ */
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state, Folder, ClipboardFile, CopiedFile } from '../models/models';

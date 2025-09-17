@@ -1,3 +1,17 @@
+/**
+ * FILE: src/providers/clipboardTreeDataProvider.ts
+ * 
+ * CLIPBOARD TREE DATA PROVIDER - PROVIDER HIỂN THỊ CLIPBOARD
+ * 
+ * Provider chịu trách nhiệm hiển thị danh sách file đã detect từ clipboard.
+ * 
+ * Chức năng chính:
+ * - Hiển thị các file đã được phát hiện trong clipboard
+ * - Hiển thị thông tin chi tiết về file (đường dẫn, thời gian detect)
+ * - Cho phép mở preview của file từ clipboard
+ * - Xử lý trường hợp không có file nào trong clipboard
+ */
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state } from '../models/models';

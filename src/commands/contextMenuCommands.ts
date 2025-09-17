@@ -1,3 +1,24 @@
+/**
+ * FILE: src/commands/contextMenuCommands.ts
+ * 
+ * CONTEXT MENU COMMANDS - LỆNH MENU NGỮ CẢNH
+ * 
+ * Các lệnh xuất hiện trong menu ngữ cảnh khi click chuột phải trên file/folder.
+ * 
+ * Chức năng chính:
+ * - openFile: Mở file
+ * - openToSide: Mở file ở bên cạnh
+ * - openWith: Mở với ứng dụng khác
+ * - copyPath: Copy đường dẫn tuyệt đối
+ * - copyRelativePath: Copy đường dẫn tương đối
+ * - revealInFileExplorer: Hiển thị trong file explorer
+ * - renameFile: Đổi tên file
+ * - deleteFile: Xóa file
+ * - cut/copy/pasteFile: Cắt/sao chép/dán file
+ * - newFile/newFolder: Tạo file/thư mục mới
+ * - copyFileInline: Copy nội dung file (inline)
+ */
+
 // src/commands/contextMenuCommands.ts
 import * as vscode from 'vscode';
 import * as path from 'path';

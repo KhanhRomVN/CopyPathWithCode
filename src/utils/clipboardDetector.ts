@@ -1,3 +1,18 @@
+/**
+ * FILE: src/utils/clipboardDetector.ts
+ * 
+ * CLIPBOARD DETECTOR - PHÁT HIỆN NỘI DUNG CLIPBOARD
+ * 
+ * Phát hiện và phân tích nội dung clipboard để tìm các file được copy.
+ * 
+ * Chức năng chính:
+ * - Theo dõi thay đổi clipboard theo thời gian thực
+ * - Phân tích nội dung clipboard để detect các file
+ * - Hỗ trợ multiple patterns để nhận diện định dạng file
+ * - Toggle detection (bật/tắt chức năng detect)
+ * - Clear queue: xóa danh sách file đã detect
+ */
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state, ClipboardFile } from '../models/models';
