@@ -1,26 +1,18 @@
 /**
- * FILE: src/utils/fileWatcher.ts
- * 
- * FILE WATCHER - THEO DÕI THAY ĐỔI FILE
- * 
- * Theo dõi sự thay đổi của file system và xử lý khi file bị xóa.
- * 
- * Chức năng chính:
- * - Theo dõi sự kiện xóa file trong workspace
- * - Tự động xóa file đã bị xóa khỏi các thư mục trong extension
- * - Cập nhật UI khi có thay đổi
- * - Singleton pattern để đảm bảo chỉ có 1 instance
+ * FILE: src/utils/folder/fileWatcher.ts
+ * Updated to use Clean Architecture
  */
 
 import * as vscode from 'vscode';
-import { state } from '../../models/models';
-import { saveFolders } from './folderUtils';
+import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
+import { FolderService } from '../../domain/folder/services/FolderService';
 import { Logger } from '../common/logger';
 
 export class FileWatcher {
     private static instance: FileWatcher;
     private fileWatcher: vscode.FileSystemWatcher | undefined;
     private disposables: vscode.Disposable[] = [];
+    private folderService: FolderService;
 
     static init(context: vscode.ExtensionContext): FileWatcher {
         if (!this.instance) {
@@ -30,6 +22,10 @@ export class FileWatcher {
     }
 
     private constructor(private context: vscode.ExtensionContext) {
+        // Get services from container
+        const container = ServiceContainer.getInstance();
+        this.folderService = container.resolve<FolderService>('FolderService');
+
         this.setupFileWatcher();
     }
 
@@ -50,29 +46,20 @@ export class FileWatcher {
         const deletedUriString = deletedUri.toString();
         Logger.info(`File deleted: ${deletedUriString}`);
 
-        let hasChanges = false;
+        try {
+            // Use clean architecture to remove deleted files
+            const removedCount = this.folderService.removeDeletedFilesFromAllFolders([deletedUriString]);
 
-        // Check all folders for the deleted file
-        for (const folder of state.folders) {
-            const beforeCount = folder.files.length;
-            folder.files = folder.files.filter(fileUri => fileUri !== deletedUriString);
-            const afterCount = folder.files.length;
+            if (removedCount > 0) {
+                // Refresh folder tree view
+                vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
 
-            if (beforeCount !== afterCount) {
-                hasChanges = true;
-                Logger.info(`Removed deleted file from folder "${folder.name}": ${deletedUriString}`);
+                vscode.window.showInformationMessage(
+                    `Removed ${removedCount} deleted file(s) from folders automatically`
+                );
             }
-        }
-
-        // Save changes if any files were removed
-        if (hasChanges) {
-            saveFolders(this.context);
-            // Refresh folder tree view
-            vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
-
-            vscode.window.showInformationMessage(
-                'Removed deleted files from folders automatically'
-            );
+        } catch (error) {
+            Logger.error('Failed to handle deleted file', error);
         }
     }
 

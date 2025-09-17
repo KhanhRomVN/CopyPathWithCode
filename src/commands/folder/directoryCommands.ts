@@ -1,5 +1,5 @@
 /**
- * FILE: src/commands/directoryCommands.ts
+ * FILE: src/commands/folder/directoryCommands.ts - Updated with CommandRegistry
  * 
  * DIRECTORY COMMANDS - LỆNH THAO TÁC VỚI THƯ MỤC
  * 
@@ -12,31 +12,41 @@
  */
 
 import * as vscode from 'vscode';
-import { FolderTreeDataProvider } from '../../providers/folder/folderTreeDataProvider';
+import { FolderProvider } from '../../providers/FolderProvider';
+import { CommandRegistry } from '../../utils/common/CommandRegistry';
 
 export function registerDirectoryCommands(
     context: vscode.ExtensionContext,
-    treeDataProvider: FolderTreeDataProvider
+    treeDataProvider: FolderProvider
 ) {
-    const commands = [
-        vscode.commands.registerCommand('copy-path-with-code.expandAllDirectories', () => {
+    // Register directory commands using CommandRegistry
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.expandAllDirectories',
+        () => {
             // This would need to be implemented in the tree provider if needed
             // For now, it's handled by VS Code's built-in expand all functionality
             vscode.window.showInformationMessage('Expand all directories');
-        }),
+        }
+    );
 
-        vscode.commands.registerCommand('copy-path-with-code.collapseAllDirectories', () => {
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.collapseAllDirectories',
+        () => {
             // This would need to be implemented in the tree provider if needed
             // For now, it's handled by VS Code's built-in collapse all functionality
             vscode.window.showInformationMessage('Collapse all directories');
-        }),
+        }
+    );
 
-        vscode.commands.registerCommand('copy-path-with-code.revealInExplorer', (item) => {
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.revealInExplorer',
+        (item) => {
             if (item && item.resourceUri) {
                 vscode.commands.executeCommand('revealInExplorer', item.resourceUri);
             }
-        })
-    ];
-
-    commands.forEach(cmd => context.subscriptions.push(cmd));
+        }
+    );
 }

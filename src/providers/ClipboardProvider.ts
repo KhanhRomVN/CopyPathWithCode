@@ -1,5 +1,5 @@
 /**
- * FILE: src/providers/clipboardTreeDataProvider.ts
+ * FILE: src/providers/ClipboardProvider.ts
  * 
  * CLIPBOARD TREE DATA PROVIDER - PROVIDER HIỂN THỊ CLIPBOARD
  * 
@@ -14,9 +14,9 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state } from '../../models/models';
+import { state } from '../models/models';
 
-export class ClipboardTreeDataProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+export class ClipboardProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<vscode.TreeItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 

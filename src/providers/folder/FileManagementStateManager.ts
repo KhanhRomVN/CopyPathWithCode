@@ -1,0 +1,279 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { FOLDER_CONSTANTS } from '../../shared/constants/FolderConstants';
+import { FileManagementState } from '../../domain/folder/types/FolderTypes';
+import { FileNode } from '../../domain/folder/entities/FileNode';
+import { IFolderTreeService } from '../../infrastructure/di/ServiceContainer';
+import { TreeItemFactory } from './TreeItemFactory';
+import { Logger } from '../../utils/common/logger';
+
+export class FileManagementStateManager {
+    private fileManagementState: FileManagementState = {
+        mode: FOLDER_CONSTANTS.FILE_MANAGEMENT_MODES.NORMAL,
+        folderId: null,
+        selectedFiles: new Set(),
+        selectedFolders: new Set()
+    };
+
+    private currentFileTree: FileNode[] = [];
+
+    constructor(private readonly folderTreeService: IFolderTreeService) { }
+
+    getState(): FileManagementState {
+        return this.fileManagementState;
+    }
+
+    isInFileManagementMode(): boolean {
+        return this.fileManagementState.mode !== FOLDER_CONSTANTS.FILE_MANAGEMENT_MODES.NORMAL;
+    }
+
+    enterFileManagementMode(folderId: string, mode: 'add' | 'remove'): void {
+        this.fileManagementState = {
+            mode,
+            folderId,
+            selectedFiles: new Set(),
+            selectedFolders: new Set()
+        };
+
+        // Pre-select existing files in 'add' mode
+        if (mode === 'add') {
+            this.preselectExistingFiles(folderId);
+        }
+    }
+
+    exitFileManagementMode(): void {
+        this.fileManagementState = {
+            mode: FOLDER_CONSTANTS.FILE_MANAGEMENT_MODES.NORMAL,
+            folderId: null,
+            selectedFiles: new Set(),
+            selectedFolders: new Set()
+        };
+        this.currentFileTree = [];
+    }
+
+    toggleFileSelection(filePath: string): void {
+        if (this.fileManagementState.selectedFiles.has(filePath)) {
+            this.fileManagementState.selectedFiles.delete(filePath);
+        } else {
+            this.fileManagementState.selectedFiles.add(filePath);
+        }
+    }
+
+    selectAllFiles(): void {
+        const allFiles = this.getAllFilesInNodes(this.currentFileTree);
+        allFiles.forEach(filePath => {
+            this.fileManagementState.selectedFiles.add(filePath);
+        });
+    }
+
+    deselectAllFiles(): void {
+        this.fileManagementState.selectedFiles.clear();
+    }
+
+    getSelectedFiles(): string[] {
+        return Array.from(this.fileManagementState.selectedFiles);
+    }
+
+    selectAllFilesInFolder(folderId: string): number {
+        try {
+            const folder = this.folderTreeService.getFolderById(folderId);
+            const fileTree = this.folderTreeService.buildFileTreeForFolder(folderId);
+
+            const allFilePaths = this.getAllFilePathsFromTree(fileTree);
+
+            let removedCount = 0;
+            allFilePaths.forEach((filePath: string) => {
+                if (this.fileManagementState.selectedFiles.has(filePath)) {
+                    this.fileManagementState.selectedFiles.delete(filePath);
+                    removedCount++;
+                }
+            });
+
+            return removedCount;
+        } catch (error) {
+            Logger.error('Error unselecting all files in folder:', error);
+            return 0;
+        }
+    }
+
+    async getFileManagementRootItems(treeItemFactory: TreeItemFactory): Promise<vscode.TreeItem[]> {
+        try {
+            const folder = this.folderTreeService.getFolderById(this.fileManagementState.folderId!);
+            const items: vscode.TreeItem[] = [];
+
+            // Header - always expanded
+            const headerItem = treeItemFactory.createFileManagementHeader(folder, this.fileManagementState.mode as 'add' | 'remove');
+            items.push(headerItem);
+
+            // Action buttons
+            items.push(
+                treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
+                treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
+                treeItemFactory.createActionButton(
+                    this.fileManagementState.mode === 'add' ? 'Confirm Add Selected' : 'Confirm Remove Selected',
+                    FOLDER_CONSTANTS.ICONS.CHECK,
+                    'confirmFileManagement',
+                    'copy-path-with-code.confirmFileManagement'
+                ),
+                treeItemFactory.createActionButton('Cancel', FOLDER_CONSTANTS.ICONS.CLOSE, 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
+            );
+
+            return items;
+        } catch (error) {
+            Logger.error('Failed to create file management root items', error);
+            return [];
+        }
+    }
+
+    async getFileManagementFiles(treeItemFactory: TreeItemFactory): Promise<vscode.TreeItem[]> {
+        try {
+            let files: string[];
+
+            if (this.fileManagementState.mode === 'add') {
+                // Show all workspace files with relative paths
+                const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
+                files = allUris.map(uri => this.getRelativePathFromUri(uri.toString()));
+            } else {
+                // Show only files in the folder with relative paths
+                const folder = this.folderTreeService.getFolderById(this.fileManagementState.folderId!);
+                files = folder.files.map(fileUri => this.getRelativePathFromUri(fileUri));
+            }
+
+            const tree = this.buildFileTreeFromPaths(files);
+            this.currentFileTree = tree;
+
+            return treeItemFactory.convertFileNodeToItems(tree, this.fileManagementState);
+        } catch (error) {
+            Logger.error('Failed to get file management files', error);
+            return [];
+        }
+    }
+
+    private preselectExistingFiles(folderId: string): void {
+        try {
+            const folder = this.folderTreeService.getFolderById(folderId);
+            const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
+
+            if (currentWorkspace) {
+                folder.files.forEach(fileUri => {
+                    try {
+                        const relativePath = this.getRelativePathFromUri(fileUri);
+                        this.fileManagementState.selectedFiles.add(relativePath);
+                    } catch (error) {
+                        Logger.warn(`Invalid URI in folder: ${fileUri}`, error);
+                    }
+                });
+            }
+        } catch (error) {
+            Logger.error(`Failed to pre-select files for folder ${folderId}`, error);
+        }
+    }
+
+    private getAllFilesInNodes(nodes: FileNode[]): string[] {
+        const files: string[] = [];
+        for (const node of nodes) {
+            files.push(...node.getAllFilePaths());
+        }
+        return files;
+    }
+
+    private getAllFilePathsFromTree(fileNodes: FileNode[]): string[] {
+        const filePaths: string[] = [];
+
+        const traverse = (nodes: FileNode[]) => {
+            for (const node of nodes) {
+                if (node.isFile) {
+                    filePaths.push(node.path);
+                } else {
+                    traverse(node.getChildrenArray());
+                }
+            }
+        };
+
+        traverse(fileNodes);
+        return filePaths;
+    }
+
+    private buildFileTreeFromPaths(filePaths: string[]): FileNode[] {
+        const fileNodes = new Map<string, FileNode>();
+
+        for (const filePath of filePaths) {
+            try {
+                this.insertFileNodeIntoTree(fileNodes, filePath);
+            } catch (error) {
+                Logger.warn(`Failed to process file path: ${filePath}`, error);
+            }
+        }
+
+        return FileNode.sortNodes(Array.from(fileNodes.values()));
+    }
+
+    private insertFileNodeIntoTree(tree: Map<string, FileNode>, filePath: string, originalUri?: string): void {
+        const parts = filePath.split('/').filter(part => part.length > 0);
+        let currentLevel = tree;
+        let currentPath = '';
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const isFile = i === parts.length - 1;
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+            if (!currentLevel.has(part)) {
+                let node: FileNode;
+                if (isFile) {
+                    const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
+                    const fullPath = currentWorkspace ? path.join(currentWorkspace, currentPath) : currentPath;
+                    const fileUri = vscode.Uri.file(fullPath).toString();
+
+                    node = FileNode.createFile(part, currentPath, originalUri || fileUri);
+                } else {
+                    node = FileNode.createDirectory(part, currentPath);
+                }
+                currentLevel.set(part, node);
+            }
+
+            if (!isFile) {
+                const node = currentLevel.get(part)!;
+                currentLevel = node.children;
+            }
+        }
+    }
+
+    private getRelativePathFromUri(uri: string): string {
+        try {
+            const vscodeUri = vscode.Uri.parse(uri);
+
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                const relativePath = vscode.workspace.asRelativePath(vscodeUri);
+                return relativePath.replace(/\\/g, '/');
+            }
+
+            return path.basename(vscodeUri.fsPath);
+        } catch (error) {
+            console.warn(`Failed to get relative path from URI: ${uri}`, error);
+            return path.basename(uri.replace(/^file:\/\//, ''));
+        }
+    }
+
+    unselectAllFilesInFolder(folderId: string): number {
+        try {
+            const folder = this.folderTreeService.getFolderById(folderId);
+            const fileTree = this.folderTreeService.buildFileTreeForFolder(folderId);
+
+            const allFilePaths = this.getAllFilePathsFromTree(fileTree);
+
+            let removedCount = 0;
+            allFilePaths.forEach((filePath: string) => {
+                if (this.fileManagementState.selectedFiles.has(filePath)) {
+                    this.fileManagementState.selectedFiles.delete(filePath);
+                    removedCount++;
+                }
+            });
+
+            return removedCount;
+        } catch (error) {
+            Logger.error('Error unselecting all files in folder:', error);
+            return 0;
+        }
+    }
+}
