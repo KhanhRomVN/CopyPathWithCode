@@ -12,7 +12,7 @@
  */
 
 import * as vscode from 'vscode';
-import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
+import { FolderTreeDataProvider } from '../../providers/folder/folderTreeDataProvider';
 
 export function registerDirectoryCommands(
     context: vscode.ExtensionContext,

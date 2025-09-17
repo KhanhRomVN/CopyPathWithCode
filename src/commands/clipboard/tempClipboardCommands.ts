@@ -12,9 +12,9 @@
  */
 
 import * as vscode from 'vscode';
-import { state } from '../models/models';
-import { Logger } from '../utils/logger';
-import { canSaveToTemp, checkClipboardIntegrity, TRACKING_SIGNATURE } from '../utils/clipboardUtils';
+import { state } from '../../models/models';
+import { Logger } from '../../utils/common/logger';
+import { canSaveToTemp, checkClipboardIntegrity, TRACKING_SIGNATURE } from '../../utils/clipboard/clipboardUtils';
 
 export async function saveClipboardToTemp() {
     // Check if we have valid content to save

@@ -18,15 +18,14 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state, Folder, ClipboardFile, CopiedFile } from '../models/models';
-import { saveFolders } from '../utils/folderUtils';
-import { copyFolderContents } from '../utils/clipboardUtils';
-import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
-import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvider';
-import { getFolderById } from '../utils/folderUtils';
-import { ClipboardDetector } from '../utils/clipboardDetector';
-import { Logger } from '../utils/logger';
-import { hasActiveWorkspace, getCurrentWorkspaceFolder, getFoldersForCurrentWorkspace } from '../utils/workspaceUtils';
+import { state, Folder, ClipboardFile, CopiedFile } from '../../models/models';
+import { saveFolders } from '../../utils/folder/folderUtils';
+import { copyFolderContents } from '../../utils/clipboard/clipboardUtils';
+import { FolderTreeDataProvider } from '../../providers/folder/folderTreeDataProvider';
+import { getFolderById } from '../../utils/folder/folderUtils';
+import { ClipboardDetector } from '../../utils/clipboard/clipboardDetector';
+import { Logger } from '../../utils/common/logger';
+import { hasActiveWorkspace, getCurrentWorkspaceFolder } from '../../utils/folder/workspaceUtils';
 
 // Constants for clipboard signature
 const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';

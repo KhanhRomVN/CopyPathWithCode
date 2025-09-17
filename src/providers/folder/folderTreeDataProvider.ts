@@ -16,9 +16,9 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state } from '../models/models';
-import { Logger } from '../utils/logger';
-import { getFoldersForCurrentWorkspace } from '../utils/workspaceUtils';
+import { state } from '../../models/models';
+import { Logger } from '../../utils/common/logger';
+import { getFoldersForCurrentWorkspace } from '../../utils/folder/workspaceUtils';
 
 interface TreeNode {
     name: string;

@@ -16,7 +16,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state, Folder } from '../models/models';
+import { state, Folder } from '../../models/models';
 
 export function getCurrentWorkspaceFolder(): string | undefined {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];

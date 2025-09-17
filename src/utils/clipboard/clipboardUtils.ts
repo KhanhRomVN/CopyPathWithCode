@@ -18,8 +18,8 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state, Folder, CopiedFile, ErrorInfo } from '../models/models';
-import { Logger } from './logger';
+import { state, Folder, CopiedFile, ErrorInfo } from '../../models/models';
+import { Logger } from '../common/logger';
 
 // Signature for tracking extension content
 const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';

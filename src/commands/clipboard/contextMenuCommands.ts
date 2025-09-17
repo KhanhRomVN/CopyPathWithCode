@@ -22,9 +22,9 @@
 // src/commands/contextMenuCommands.ts
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state } from '../models/models';
-import { Logger } from '../utils/logger';
-import { TRACKING_SIGNATURE } from '../utils/clipboardUtils';
+import { state } from '../../models/models';
+import { Logger } from '../../utils/common/logger';
+import { TRACKING_SIGNATURE } from '../../utils/clipboard/clipboardUtils';
 
 export function registerContextMenuCommands(context: vscode.ExtensionContext) {
     const commands = [

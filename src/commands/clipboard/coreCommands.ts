@@ -12,7 +12,7 @@
  */
 
 import * as vscode from 'vscode';
-import { copyPathWithContent, clearClipboard, copyPathWithContentAndError } from '../utils/clipboardUtils';
+import { copyPathWithContent, clearClipboard, copyPathWithContentAndError } from '../../utils/clipboard/clipboardUtils';
 
 export function registerCoreCommands(context: vscode.ExtensionContext) {
     const commands = [

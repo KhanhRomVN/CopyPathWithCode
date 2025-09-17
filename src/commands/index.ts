@@ -15,13 +15,16 @@
  */
 
 import * as vscode from 'vscode';
-import { registerCoreCommands } from './coreCommands';
-import { registerFolderCommands } from './folderCommands';
-import { registerDirectoryCommands } from './directoryCommands';
-import { registerContextMenuCommands } from './contextMenuCommands';
-import { FolderTreeDataProvider } from '../providers/folderTreeDataProvider';
-import { ClipboardTreeDataProvider } from '../providers/clipboardTreeDataProvider';
-import { registerTempClipboardCommands } from './tempClipboardCommands';
+/* Command */
+import { registerCoreCommands } from './clipboard/coreCommands';
+import { registerFolderCommands } from './folder/folderCommands';
+import { registerDirectoryCommands } from './folder/directoryCommands';
+import { registerContextMenuCommands } from './clipboard/contextMenuCommands';
+import { registerTempClipboardCommands } from './clipboard/tempClipboardCommands';
+
+/* Provider */
+import { FolderTreeDataProvider } from '../providers/folder/folderTreeDataProvider';
+import { ClipboardTreeDataProvider } from '../providers/clipboard/clipboardTreeDataProvider';
 
 export function registerAllCommands(
     context: vscode.ExtensionContext,
