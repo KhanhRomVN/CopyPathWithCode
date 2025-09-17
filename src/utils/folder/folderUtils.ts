@@ -14,7 +14,7 @@
  */
 
 import * as vscode from 'vscode';
-import { state, Folder } from '../models/models';
+import { state, Folder } from '../../models/models';
 
 export function loadFolders(context: vscode.ExtensionContext) {
     const stored = context.globalState.get<Folder[]>('folders');

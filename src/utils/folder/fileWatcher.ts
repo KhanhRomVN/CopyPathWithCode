@@ -13,9 +13,9 @@
  */
 
 import * as vscode from 'vscode';
-import { state } from '../models/models';
+import { state } from '../../models/models';
 import { saveFolders } from './folderUtils';
-import { Logger } from './logger';
+import { Logger } from '../common/logger';
 
 export class FileWatcher {
     private static instance: FileWatcher;

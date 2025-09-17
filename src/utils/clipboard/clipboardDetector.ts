@@ -15,8 +15,8 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state, ClipboardFile } from '../models/models';
-import { Logger } from './logger';
+import { state, ClipboardFile } from '../../models/models';
+import { Logger } from '../common/logger';
 
 export class ClipboardDetector {
     private static instance: ClipboardDetector;
