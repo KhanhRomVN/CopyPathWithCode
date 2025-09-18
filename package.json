@@ -155,17 +155,19 @@
       },
       {
         "command": "copy-path-with-code.openFile",
-        "title": "Open",
-        "icon": "$(go-to-file)"
+        "title": "Open"
       },
       {
         "command": "copy-path-with-code.openToSide",
-        "title": "Open to the Side",
-        "icon": "$(split-horizontal)"
+        "title": "Open to the Side"
       },
       {
         "command": "copy-path-with-code.openWith",
         "title": "Open With..."
+      },
+      {
+        "command": "copy-path-with-code.openContainingFolder",
+        "title": "Open Containing Folder"
       },
       {
         "command": "copy-path-with-code.copyPath",
@@ -178,6 +180,10 @@
       {
         "command": "copy-path-with-code.revealInFileExplorer",
         "title": "Reveal in File Explorer"
+      },
+      {
+        "command": "copy-path-with-code.openInIntegratedTerminal",
+        "title": "Open in Integrated Terminal"
       },
       {
         "command": "copy-path-with-code.renameFile",
@@ -201,13 +207,11 @@
       },
       {
         "command": "copy-path-with-code.newFile",
-        "title": "New File",
-        "icon": "$(new-file)"
+        "title": "New File"
       },
       {
         "command": "copy-path-with-code.newFolder",
-        "title": "New Folder",
-        "icon": "$(new-folder)"
+        "title": "New Folder"
       },
       {
         "command": "copy-path-with-code.copyIndividualFile",
@@ -328,6 +332,86 @@
           "command": "copy-path-with-code.unselectAllFilesInFolder",
           "when": "view == folderManager && viewItem == fileManagementDirectory",
           "group": "1_selection@2"
+        },
+        {
+          "submenu": "copy-path-with-code.fileContextMenu",
+          "when": "view == folderManager && viewItem == file",
+          "group": "navigation@1"
+        },
+        {
+          "submenu": "copy-path-with-code.folderContextMenu", 
+          "when": "view == folderManager && viewItem == directory",
+          "group": "navigation@1"
+        },
+        {
+          "command": "copy-path-with-code.openFile",
+          "when": "view == folderManager && viewItem == file",
+          "group": "1_file@1"
+        },
+        {
+          "command": "copy-path-with-code.openToSide",
+          "when": "view == folderManager && viewItem == file", 
+          "group": "1_file@2"
+        },
+        {
+          "command": "copy-path-with-code.openWith",
+          "when": "view == folderManager && viewItem == file",
+          "group": "1_file@3"
+        },
+        {
+          "command": "copy-path-with-code.openContainingFolder",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "2_workspace@1"
+        },
+        {
+          "command": "copy-path-with-code.openInIntegratedTerminal",
+          "when": "view == folderManager && viewItem == directory",
+          "group": "2_workspace@2"
+        },
+        {
+          "command": "copy-path-with-code.copyPath",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "3_compare@1"
+        },
+        {
+          "command": "copy-path-with-code.copyRelativePath",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "3_compare@2"
+        },
+        {
+          "command": "copy-path-with-code.cutFile",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "4_cutcopypaste@1"
+        },
+        {
+          "command": "copy-path-with-code.copyFile",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "4_cutcopypaste@2"
+        },
+        {
+          "command": "copy-path-with-code.pasteFile",
+          "when": "view == folderManager && viewItem == directory && copyPathWithCode.hasClipboardItems",
+          "group": "4_cutcopypaste@3"
+        },
+        {
+          "command": "copy-path-with-code.renameFile",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "5_modification@1"
+        },
+        {
+          "command": "copy-path-with-code.deleteFile",
+          "when": "view == folderManager && (viewItem == file || viewItem == directory)",
+          "group": "5_modification@2"
+        },
+        {
+          "command": "copy-path-with-code.newFile",
+          "when": "view == folderManager && viewItem == directory",
+          "group": "6_new@1"
+        },
+        {
+          "command": "copy-path-with-code.newFolder",
+          "when": "view == folderManager && viewItem == directory",
+          "group": "6_new@2"
         }
       ],
       "view/title": [
@@ -343,6 +427,16 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "copy-path-with-code.fileContextMenu",
+        "label": "File Options"
+      },
+      {
+        "id": "copy-path-with-code.folderContextMenu",
+        "label": "Folder Options"
+      }
+    ],
     "configuration": {
       "title": "Copy Path with Code",
       "properties": {

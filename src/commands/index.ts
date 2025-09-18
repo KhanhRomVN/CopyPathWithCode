@@ -20,6 +20,7 @@ import { registerFileManagementCommands } from './folder/FileManagementCommands'
 import { registerViewCommands } from './folder/ViewCommands';
 import { registerDirectoryCommands } from './folder/directoryCommands';
 import { registerFolderMenuCommands } from './folder/FolderMenuCommands';
+import { registerContextMenuCommands } from './folder/ContextMenuCommands'; // NEW
 
 export function registerAllCommands(
     context: vscode.ExtensionContext,
@@ -46,6 +47,9 @@ export function registerAllCommands(
         registerMainApplicationCommands(context, treeDataProvider, clipboardProvider);
         registerFileOperationCommands(context);
         registerClipboardCommands(context, clipboardProvider);
+
+        registerContextMenuCommands(context);
+        Logger.debug('Context menu commands registered');
 
         const registeredCommands = CommandRegistry.getRegisteredCommands();
         Logger.info(`Successfully registered ${registeredCommands.length} commands`);
