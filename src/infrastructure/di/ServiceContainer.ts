@@ -1,5 +1,5 @@
 /**
- * Updated ServiceContainer with Clipboard Clean Architecture Integration
+ * Updated ServiceContainer with FileSystem Storage for cross-window synchronization
  */
 
 import * as vscode from 'vscode';
@@ -14,8 +14,8 @@ import { FolderValidator } from '../../domain/folder/validators/FolderValidator'
 import { ClipboardService, IClipboardRepository, IClipboardSystemService } from '../../domain/clipboard/services/ClipboardService';
 import { ClipboardDetectionService } from '../../domain/clipboard/services/ClipboardDetectionService';
 
-// Infrastructure Services - Folder
-import { FolderStorage } from '../folder/storage/FolderStorage';
+// Infrastructure Services - Folder (UPDATED)
+import { FileSystemFolderStorage } from '../folder/storage/FileSystemFolderStorage'; // NEW
 import { VSCodeFileSystemService } from '../folder/filesystem/FileSystemService';
 import { VSCodeWorkspaceService, IWorkspaceService } from '../folder/workspace/WorkspaceService';
 import { VSCodeNotificationService } from '../folder/ui/NotificationService';
@@ -85,8 +85,8 @@ export class ServiceContainer {
     }
 
     private registerInfrastructureServices(context: vscode.ExtensionContext): void {
-        // Folder Storage
-        const folderStorage = new FolderStorage(context);
+        // UPDATED: Use FileSystem storage instead of GlobalState storage
+        const folderStorage = new FileSystemFolderStorage(context);
         this.register<IFolderRepository>('IFolderRepository', folderStorage);
 
         // File System
@@ -333,7 +333,14 @@ export class ServiceContainer {
         return service;
     }
 
+    // UPDATED: Added proper disposal of FileSystemFolderStorage
     dispose(): void {
+        // Dispose folder storage if it has a dispose method
+        const folderStorage = this.services.get('IFolderRepository');
+        if (folderStorage && typeof folderStorage.dispose === 'function') {
+            folderStorage.dispose();
+        }
+
         this.services.clear();
         this.isInitialized = false;
     }
