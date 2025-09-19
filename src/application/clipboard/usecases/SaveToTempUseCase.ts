@@ -22,11 +22,13 @@ export class SaveToTempUseCase {
                 return;
             }
 
-            const success = this.clipboardService.saveToTemp();
-            if (success) {
-                await this.clipboardService.updateSystemClipboard();
-                this.notificationService.showInfo(`Saved ${copiedFiles.length} files to temporary storage`);
-            }
+            // Save to temp storage
+            await this.clipboardService.saveToTemp();
+
+            // Clear current clipboard after saving to temp
+            await this.clipboardService.clearCopiedFiles();
+
+            this.notificationService.showInfo(`Saved ${copiedFiles.length} files to temporary storage`);
         } catch (error) {
             this.notificationService.showError(
                 `Failed to save to temp: ${error instanceof Error ? error.message : 'Unknown error'}`

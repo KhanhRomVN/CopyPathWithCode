@@ -1,13 +1,33 @@
-import { ClipboardFileEntity } from '../entities/ClipboardFile';
+/**
+ * FILE: src/domain/clipboard/services/ClipboardDetectionService.ts
+ * 
+ * CLIPBOARD DETECTION SERVICE - Standardized clipboard content parsing
+ * 
+ * This service handles parsing clipboard content to detect file information
+ * using standardized patterns and data structures.
+ */
+
+import * as path from 'path';
+
+export interface DetectedFile {
+    filePath: string;
+    content: string;
+    detectedAt: number;
+}
 
 export class ClipboardDetectionService {
-    parseClipboardContent(text: string): ClipboardFileEntity[] {
+
+    /**
+     * Parse clipboard content and return detected files
+     */
+    parseClipboardContent(text: string): DetectedFile[] {
         if (!text || text.trim().length === 0) {
             return [];
         }
 
+        // Parse multiple files separated by ---
         const sections = text.split(/\n\s*---\s*\n/).filter(section => section.trim());
-        const detectedFiles: ClipboardFileEntity[] = [];
+        const detectedFiles: DetectedFile[] = [];
 
         for (const section of sections) {
             const file = this.parseFileSection(section.trim());
@@ -19,7 +39,10 @@ export class ClipboardDetectionService {
         return detectedFiles;
     }
 
-    private parseFileSection(section: string): ClipboardFileEntity | null {
+    /**
+     * Parse a single section of clipboard content to extract file information
+     */
+    private parseFileSection(section: string): DetectedFile | null {
         // Pattern 1: FILENAME:\n```\nCONTENT\n```
         let match = section.match(/^([^:\n]+):\s*\n```\s*\n([\s\S]*?)\n```\s*$/);
 
@@ -28,7 +51,11 @@ export class ClipboardDetectionService {
             const content = match[2];
 
             if (this.isValidFilePath(filePath) && content) {
-                return ClipboardFileEntity.create(filePath, content);
+                return {
+                    filePath,
+                    content,
+                    detectedAt: Date.now()
+                };
             }
         }
 
@@ -40,7 +67,11 @@ export class ClipboardDetectionService {
             const content = match[2];
 
             if (this.isValidFilePath(filePath) && content) {
-                return ClipboardFileEntity.create(filePath, content);
+                return {
+                    filePath,
+                    content,
+                    detectedAt: Date.now()
+                };
             }
         }
 
@@ -52,23 +83,31 @@ export class ClipboardDetectionService {
             const content = match[2];
 
             if (content) {
-                return ClipboardFileEntity.create(fullPath, content);
+                return {
+                    filePath: fullPath,
+                    content,
+                    detectedAt: Date.now()
+                };
             }
         }
 
         return null;
     }
 
+    /**
+     * Check if a string looks like a valid file path
+     */
     private isValidFilePath(filePath: string): boolean {
         if (!filePath || filePath.trim().length === 0) {
             return false;
         }
 
+        // Remove line range if present (e.g., "file.js:1-10" -> "file.js")
         const cleanPath = filePath.split(':')[0];
+
+        // Check if it looks like a file (has extension or common filename patterns)
         const hasExtension = /\.[a-zA-Z0-9]+$/.test(cleanPath);
-        const isCommonFile = /^(Makefile|Dockerfile|README|LICENSE|CHANGELOG)$/i.test(
-            cleanPath.split('/').pop() || ''
-        );
+        const isCommonFile = /^(Makefile|Dockerfile|README|LICENSE|CHANGELOG)$/i.test(path.basename(cleanPath));
 
         return hasExtension || isCommonFile;
     }

@@ -9,11 +9,10 @@ import { FileWatcher } from './utils/folder/fileWatcher';
 
 // Import clipboard services
 import { ClipboardService } from './domain/clipboard/services/ClipboardService';
-import { ClipboardDetectionService } from './domain/clipboard/services/ClipboardDetectionService';
-import { CommandRegistry } from './utils/common/CommandRegistry';
+import { ClipboardDetector } from './utils/clipboard/clipboardDetector';
 
 let clipboardMonitoringInterval: NodeJS.Timeout | undefined;
-let clipboardDetector: any;
+let clipboardDetector: ClipboardDetector | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     try {
@@ -63,8 +62,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', 'workspace');
         vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', state.clipboardFiles.length > 0);
 
-        // Initialize clipboard detection with clean architecture
-        clipboardDetector = initializeClipboardDetector(context, container, clipboardProvider);
+        // Initialize clipboard detection using the existing ClipboardDetector class
+        clipboardDetector = ClipboardDetector.init(context);
 
         // Start clipboard integrity monitoring
         startClipboardMonitoring(container);
@@ -98,126 +97,6 @@ export function activate(context: vscode.ExtensionContext) {
         Logger.error('Failed to activate extension', error);
         vscode.window.showErrorMessage(`Failed to activate Copy Path with Code: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-}
-
-function initializeClipboardDetector(
-    context: vscode.ExtensionContext,
-    container: ServiceContainer,
-    clipboardProvider: ClipboardProvider
-): any {
-    const clipboardService = container.resolve<ClipboardService>('ClipboardService');
-    const detectionService = container.resolve<ClipboardDetectionService>('ClipboardDetectionService');
-
-    // Create a simple clipboard detector that uses the clean architecture services
-    const detector = {
-        updateInterval: null as NodeJS.Timeout | null,
-        lastClipboardContent: '',
-        isDetectionEnabled: true,
-
-        async checkClipboard() {
-            if (!this.isDetectionEnabled) {
-                return;
-            }
-
-            try {
-                const clipboardText = await vscode.env.clipboard.readText();
-
-                if (clipboardText !== this.lastClipboardContent) {
-                    this.lastClipboardContent = clipboardText;
-                    Logger.debug('Clipboard content changed, parsing...');
-                    this.parseClipboardContent(clipboardText);
-                }
-            } catch (error) {
-                Logger.debug('Failed to read clipboard content', error);
-            }
-        },
-
-        parseClipboardContent(text: string) {
-            if (!text || text.trim().length === 0) {
-                Logger.debug('Empty clipboard content, clearing detected files');
-                const currentFiles = clipboardService.getDetectedFiles();
-                if (currentFiles.length > 0) {
-                    clipboardService.clearDetectedFiles();
-                    this.refreshClipboardView();
-                }
-                return;
-            }
-
-            Logger.debug('Parsing clipboard content:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
-
-            const detectedFiles = detectionService.parseClipboardContent(text);
-
-            if (detectedFiles.length > 0) {
-                clipboardService.clearDetectedFiles();
-                detectedFiles.forEach(file => {
-                    clipboardService.addDetectedFile(file);
-                });
-
-                Logger.info(`Detected ${detectedFiles.length} file(s) in clipboard:`, detectedFiles.map(f => f.filePath));
-            } else {
-                const currentFiles = clipboardService.getDetectedFiles();
-                if (currentFiles.length > 0) {
-                    clipboardService.clearDetectedFiles();
-                }
-            }
-
-            this.refreshClipboardView();
-        },
-
-        refreshClipboardView() {
-            vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
-        },
-
-        startDetection() {
-            if (this.updateInterval) {
-                clearInterval(this.updateInterval);
-            }
-
-            this.updateInterval = setInterval(() => {
-                this.checkClipboard();
-            }, 1000);
-
-            Logger.debug('Clipboard detection started');
-            this.checkClipboard();
-        },
-
-        stopDetection() {
-            if (this.updateInterval) {
-                clearInterval(this.updateInterval);
-                this.updateInterval = null;
-                Logger.debug('Clipboard detection stopped');
-            }
-        },
-
-        toggleDetection(enabled: boolean) {
-            this.isDetectionEnabled = enabled;
-            if (enabled) {
-                this.startDetection();
-            } else {
-                this.stopDetection();
-            }
-            Logger.info(`Clipboard detection ${enabled ? 'enabled' : 'disabled'}`);
-        },
-
-        clearQueue() {
-            const count = clipboardService.getDetectedFiles().length;
-            clipboardService.clearDetectedFiles();
-            this.lastClipboardContent = '';
-            Logger.info(`Cleared ${count} file(s) from clipboard queue`);
-            this.refreshClipboardView();
-        },
-
-        dispose() {
-            this.stopDetection();
-            Logger.info('Clipboard detector disposed');
-        }
-    };
-
-    // Start detection
-    detector.startDetection();
-    Logger.info('Clipboard detector initialized with clean architecture');
-
-    return detector;
 }
 
 function startClipboardMonitoring(container: ServiceContainer) {

@@ -16,11 +16,10 @@ export class RestoreFromTempUseCase {
                 return;
             }
 
-            const success = this.clipboardService.restoreFromTemp();
-            if (success) {
-                await this.clipboardService.updateSystemClipboard();
-                this.notificationService.showInfo(`Restored ${tempFiles.length} files from temporary storage`);
-            }
+            // Restore from temp storage
+            await this.clipboardService.restoreFromTemp();
+
+            this.notificationService.showInfo(`Restored ${tempFiles.length} files from temporary storage`);
         } catch (error) {
             this.notificationService.showError(
                 `Failed to restore from temp: ${error instanceof Error ? error.message : 'Unknown error'}`

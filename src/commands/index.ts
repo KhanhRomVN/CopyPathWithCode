@@ -1,8 +1,6 @@
 /**
- * FILE: src/commands/index.ts
- * 
- * COMMANDS INDEX - Simplified command registration
- * Fixed to prevent "An object could not be cloned" error
+ * Updated src/commands/index.ts
+ * Refactored clipboard commands to use clean architecture services
  */
 
 import * as vscode from 'vscode';
@@ -11,7 +9,7 @@ import { ClipboardProvider } from '../providers/ClipboardProvider';
 import { ServiceContainer } from '../infrastructure/di/ServiceContainer';
 import { CommandRegistry } from '../utils/common/CommandRegistry';
 import { Logger } from '../utils/common/logger';
-
+import { ClipboardDetector } from '../utils/clipboard/clipboardDetector';
 
 // Import command modules
 import { registerCoreCommands } from './clipboard/coreCommands';
@@ -22,6 +20,9 @@ import { registerViewCommands } from './folder/ViewCommands';
 import { registerDirectoryCommands } from './folder/directoryCommands';
 import { registerFolderMenuCommands } from './folder/FolderMenuCommands';
 import { registerContextMenuCommands } from './clipboard/contextMenuCommands';
+
+// Import services for clipboard commands
+import { ClipboardService } from '../domain/clipboard/services/ClipboardService';
 
 export function registerAllCommands(
     context: vscode.ExtensionContext,
@@ -130,35 +131,44 @@ function registerMainApplicationCommands(
     );
 }
 
-// Clipboard management commands with simplified implementations
+// Clipboard management commands using clean architecture services
 function registerClipboardCommands(
     context: vscode.ExtensionContext,
     clipboardProvider: ClipboardProvider
 ): void {
 
+    // Get services from container
+    const container = ServiceContainer.getInstance();
+    const clipboardService = container.resolve<ClipboardService>('ClipboardService');
+
     CommandRegistry.registerCommand(
         context,
         'copy-path-with-code.toggleClipboardDetection',
         () => {
-            // Simple toggle implementation
-            const { state } = require('../models/models');
-            state.isClipboardDetectionEnabled = !state.isClipboardDetectionEnabled;
-            const status = state.isClipboardDetectionEnabled ? 'enabled' : 'disabled';
-            vscode.window.showInformationMessage(`Clipboard detection ${status}`);
+            // Use ClipboardDetector with proper service integration
+            const detector = ClipboardDetector.getInstance();
+            if (detector) {
+                const currentStatus = detector.getDetectionStatus();
+                const newState = !currentStatus;
+                detector.toggleDetection(newState);
+                const status = newState ? 'enabled' : 'disabled';
+                vscode.window.showInformationMessage(`Clipboard detection ${status}`);
+            }
         }
     );
 
     CommandRegistry.registerCommand(
         context,
         'copy-path-with-code.clearClipboardQueue',
-        () => {
-            // Clear clipboard queue by refreshing the provider
-            clipboardProvider.refresh();
-            // Clear the state array directly
-            const { state } = require('../models/models');
-            state.clipboardFiles.length = 0;
-            vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', false);
-            vscode.window.showInformationMessage('Clipboard queue cleared');
+        async () => {
+            // Use ClipboardDetector with proper service integration
+            const detector = ClipboardDetector.getInstance();
+            if (detector) {
+                await detector.clearQueue();
+                clipboardProvider.refresh();
+                vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', false);
+                vscode.window.showInformationMessage('Clipboard queue cleared');
+            }
         }
     );
 
@@ -169,6 +179,20 @@ function registerClipboardCommands(
             if (item?.resourceUri) {
                 vscode.commands.executeCommand('vscode.open', item.resourceUri);
             }
+        }
+    );
+
+    // Refresh clipboard view command
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.refreshClipboardView',
+        () => {
+            clipboardProvider.refresh();
+            // Update context for UI visibility using clean architecture
+            const detectedFiles = clipboardService.getDetectedFiles();
+            vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles',
+                detectedFiles.length > 0);
+            Logger.debug('Clipboard view refreshed');
         }
     );
 }

@@ -1,42 +1,44 @@
 /**
- * FILE: src/utils/clipboardDetector.ts
+ * FILE: src/utils/clipboard/clipboardDetector.ts
  * 
- * CLIPBOARD DETECTOR - PHÁT HIỆN NỘI DUNG CLIPBOARD
+ * CLIPBOARD DETECTOR - REFACTORED FOR CLEAN ARCHITECTURE
  * 
- * Phát hiện và phân tích nội dung clipboard để tìm các file được copy.
- * 
- * Chức năng chính:
- * - Theo dõi thay đổi clipboard theo thời gian thực
- * - Phân tích nội dung clipboard để detect các file
- * - Hỗ trợ multiple patterns để nhận diện định dạng file
- * - Toggle detection (bật/tắt chức năng detect)
- * - Clear queue: xóa danh sách file đã detect
+ * Fully integrated with clean architecture - no direct state manipulation.
+ * Uses ServiceContainer to access ClipboardService and ClipboardDetectionService.
  */
 
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { state, ClipboardFile } from '../../models/models';
 import { Logger } from '../common/logger';
+import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
+import { ClipboardService } from '../../domain/clipboard/services/ClipboardService';
+import { ClipboardDetectionService } from '../../domain/clipboard/services/ClipboardDetectionService';
 
 export class ClipboardDetector {
     private static instance: ClipboardDetector;
-    private disposables: vscode.Disposable[] = [];
     private updateInterval: NodeJS.Timeout | null = null;
     private lastClipboardContent: string = '';
+    private clipboardService: ClipboardService;
+    private detectionService: ClipboardDetectionService;
+    private isDetectionEnabled: boolean = true;
 
-    static init(context: vscode.ExtensionContext) {
+    static init(context: vscode.ExtensionContext): ClipboardDetector {
         if (!this.instance) {
             this.instance = new ClipboardDetector(context);
-            Logger.info('Clipboard detector initialized');
+            Logger.info('Clipboard detector initialized with clean architecture');
         }
         return this.instance;
     }
 
     private constructor(private context: vscode.ExtensionContext) {
+        // Get services from ServiceContainer
+        const container = ServiceContainer.getInstance();
+        this.clipboardService = container.resolve<ClipboardService>('ClipboardService');
+        this.detectionService = container.resolve<ClipboardDetectionService>('ClipboardDetectionService');
+
         this.startDetection();
     }
 
-    startDetection() {
+    private startDetection(): void {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
         }
@@ -51,7 +53,7 @@ export class ClipboardDetector {
         this.checkClipboard();
     }
 
-    stopDetection() {
+    private stopDetection(): void {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
@@ -59,8 +61,9 @@ export class ClipboardDetector {
         }
     }
 
-    async checkClipboard() {
-        if (!state.isClipboardDetectionEnabled) {
+    private async checkClipboard(): Promise<void> {
+        // Check if detection is enabled
+        if (!this.isDetectionEnabled) {
             return;
         }
 
@@ -71,137 +74,59 @@ export class ClipboardDetector {
             if (clipboardText !== this.lastClipboardContent) {
                 this.lastClipboardContent = clipboardText;
                 Logger.debug('Clipboard content changed, parsing...');
-                this.parseClipboardContent(clipboardText);
+                await this.parseClipboardContent(clipboardText);
             }
         } catch (error) {
             Logger.debug('Failed to read clipboard content', error);
         }
     }
 
-    private parseClipboardContent(text: string) {
+    private async parseClipboardContent(text: string): Promise<void> {
         if (!text || text.trim().length === 0) {
-            Logger.debug('Empty clipboard content, clearing clipboard files');
-            if (state.clipboardFiles.length > 0) {
-                state.clipboardFiles = [];
-                vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
-            }
+            Logger.debug('Empty clipboard content, clearing detected files');
+            // Use ClipboardService instead of direct state manipulation
+            await this.clipboardService.clearDetectedFiles();
+            this.refreshClipboardView();
             return;
         }
 
         Logger.debug('Parsing clipboard content:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
 
-        // Parse multiple files separated by ---
-        const sections = text.split(/\n\s*---\s*\n/).filter(section => section.trim());
-        const detectedFiles: ClipboardFile[] = [];
+        try {
+            // Use the DetectionService to parse clipboard content
+            const detectedFiles = this.detectionService.parseClipboardContent(text);
 
-        for (const section of sections) {
-            const file = this.parseFileSection(section.trim());
-            if (file) {
-                detectedFiles.push(file);
+            if (detectedFiles.length > 0) {
+                // Use ClipboardService to update detected files
+                await this.clipboardService.updateDetectedFiles(detectedFiles);
+                Logger.info(`Detected ${detectedFiles.length} file(s) in clipboard:`,
+                    detectedFiles.map(f => f.filePath));
+            } else {
+                // If no valid files found but clipboard has content, clear the files list
+                const currentDetectedFiles = this.clipboardService.getDetectedFiles();
+                if (currentDetectedFiles.length > 0) {
+                    Logger.debug('No valid files detected, clearing clipboard files');
+                    await this.clipboardService.clearDetectedFiles();
+                }
             }
-        }
-
-        // Update state if we found files
-        if (detectedFiles.length > 0) {
-            state.clipboardFiles = detectedFiles;
-            Logger.info(`Detected ${detectedFiles.length} file(s) in clipboard:`, detectedFiles.map(f => f.filePath));
-        } else {
-            // If no valid files found but clipboard has content, clear the files list
-            if (state.clipboardFiles.length > 0) {
-                Logger.debug('No valid files detected, clearing clipboard files');
-                state.clipboardFiles = [];
-            }
+        } catch (error) {
+            Logger.error('Failed to parse clipboard content', error);
+            // Clear detected files on parse error
+            await this.clipboardService.clearDetectedFiles();
         }
 
         // Always trigger UI update
+        this.refreshClipboardView();
+    }
+
+    private refreshClipboardView(): void {
         vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
     }
 
-    private parseFileSection(section: string): ClipboardFile | null {
-        // More flexible pattern matching for file content
-        // Pattern 1: FILENAME:\n```\nCONTENT\n```
-        let match = section.match(/^([^:\n]+):\s*\n```\s*\n([\s\S]*?)\n```\s*$/);
+    // Public methods for external control
+    public toggleDetection(enabled: boolean): void {
+        this.isDetectionEnabled = enabled;
 
-        if (match) {
-            const filePath = match[1].trim();
-            const content = match[2];
-
-            Logger.debug(`Found file pattern 1: ${filePath}`);
-
-            if (this.isValidFilePath(filePath) && content) {
-                return {
-                    filePath,
-                    content,
-                    detectedAt: Date.now()
-                };
-            }
-        }
-
-        // Pattern 2: FILENAME:\n```language\nCONTENT\n```
-        match = section.match(/^([^:\n]+):\s*\n```\w*\s*\n([\s\S]*?)\n```\s*$/);
-
-        if (match) {
-            const filePath = match[1].trim();
-            const content = match[2];
-
-            Logger.debug(`Found file pattern 2: ${filePath}`);
-
-            if (this.isValidFilePath(filePath) && content) {
-                return {
-                    filePath,
-                    content,
-                    detectedAt: Date.now()
-                };
-            }
-        }
-
-        // Pattern 3: Handle line ranges like filename.ext:1-10
-        match = section.match(/^([^:\n]+:\d+-\d+):\s*\n```\s*\n([\s\S]*?)\n```\s*$/);
-
-        if (match) {
-            const fullPath = match[1].trim();
-            const content = match[2];
-
-            Logger.debug(`Found file pattern 3 (with line range): ${fullPath}`);
-
-            if (content) {
-                return {
-                    filePath: fullPath,
-                    content,
-                    detectedAt: Date.now()
-                };
-            }
-        }
-
-        Logger.debug('No valid file pattern found in section:', section.substring(0, 100));
-        return null;
-    }
-
-    private isValidFilePath(filePath: string): boolean {
-        if (!filePath || filePath.trim().length === 0) {
-            return false;
-        }
-
-        // Remove line range if present (e.g., "file.js:1-10" -> "file.js")
-        const cleanPath = filePath.split(':')[0];
-
-        // Check if it looks like a file (has extension or common filename patterns)
-        const hasExtension = /\.[a-zA-Z0-9]+$/.test(cleanPath);
-        const isCommonFile = /^(Makefile|Dockerfile|README|LICENSE|CHANGELOG)$/i.test(path.basename(cleanPath));
-
-        return hasExtension || isCommonFile;
-    }
-
-    clearQueue() {
-        const count = state.clipboardFiles.length;
-        state.clipboardFiles = [];
-        this.lastClipboardContent = ''; // Reset last content to force re-parse
-        Logger.info(`Cleared ${count} file(s) from clipboard queue`);
-        vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
-    }
-
-    toggleDetection(enabled: boolean) {
-        state.isClipboardDetectionEnabled = enabled;
         if (enabled) {
             this.startDetection();
         } else {
@@ -210,9 +135,28 @@ export class ClipboardDetector {
         Logger.info(`Clipboard detection ${enabled ? 'enabled' : 'disabled'}`);
     }
 
-    dispose() {
+    public async clearQueue(): Promise<void> {
+        const currentFiles = this.clipboardService.getDetectedFiles();
+        const count = currentFiles.length;
+
+        await this.clipboardService.clearDetectedFiles();
+        this.lastClipboardContent = ''; // Reset last content to force re-parse
+
+        Logger.info(`Cleared ${count} file(s) from clipboard queue`);
+        this.refreshClipboardView();
+    }
+
+    public getDetectionStatus(): boolean {
+        return this.isDetectionEnabled;
+    }
+
+    public dispose(): void {
         this.stopDetection();
-        this.disposables.forEach(d => d.dispose());
         Logger.info('Clipboard detector disposed');
+    }
+
+    // Static method to get the instance (for command access)
+    public static getInstance(): ClipboardDetector | undefined {
+        return this.instance;
     }
 }

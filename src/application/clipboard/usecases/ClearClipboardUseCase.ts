@@ -9,12 +9,9 @@ export class ClearClipboardUseCase {
 
     async execute(): Promise<void> {
         try {
-            const beforeCount = this.clipboardService.getCopiedFiles().length;
-
-            this.clipboardService.clearCopiedFiles();
-            this.clipboardService.clearDetectedFiles();
-
-            await this.clipboardService.updateSystemClipboard();
+            // Clear both copied and detected files
+            await this.clipboardService.clearCopiedFiles();
+            await this.clipboardService.clearDetectedFiles();
 
             this.notificationService.showInfo('Clipboard cleared');
         } catch (error) {

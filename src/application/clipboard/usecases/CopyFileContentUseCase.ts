@@ -60,9 +60,9 @@ export class CopyFileContentUseCase {
             }
 
             const copiedFile = CopiedFileEntity.create(displayPath, basePath, formattedContent, format);
-            this.clipboardService.addCopiedFile(copiedFile);
 
-            await this.clipboardService.updateSystemClipboard();
+            // SỬA LỖI: Thay thế updateSystemClipboard() bằng addCopiedFile()
+            await this.clipboardService.addCopiedFile(copiedFile);
 
             const count = this.clipboardService.getCopiedFiles().length;
             const errorText = includeErrors ? ' with errors' : '';

@@ -1,24 +1,27 @@
 /**
  * FILE: src/providers/ClipboardProvider.ts
  * 
- * CLIPBOARD TREE DATA PROVIDER - PROVIDER HIỂN THỊ CLIPBOARD
+ * CLIPBOARD TREE DATA PROVIDER - UPDATED FOR CLEAN ARCHITECTURE
  * 
- * Provider chịu trách nhiệm hiển thị danh sách file đã detect từ clipboard.
- * 
- * Chức năng chính:
- * - Hiển thị các file đã được phát hiện trong clipboard
- * - Hiển thị thông tin chi tiết về file (đường dẫn, thời gian detect)
- * - Cho phép mở preview của file từ clipboard
- * - Xử lý trường hợp không có file nào trong clipboard
+ * Provider now uses ClipboardService instead of direct state access.
  */
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { state } from '../models/models';
+import { ServiceContainer } from '../infrastructure/di/ServiceContainer';
+import { ClipboardService } from '../domain/clipboard/services/ClipboardService';
 
 export class ClipboardProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<vscode.TreeItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+    private clipboardService: ClipboardService;
+
+    constructor() {
+        // Get clipboard service from container
+        const container = ServiceContainer.getInstance();
+        this.clipboardService = container.resolve<ClipboardService>('ClipboardService');
+    }
 
     refresh(): void {
         this._onDidChangeTreeData.fire(undefined);
@@ -37,13 +40,16 @@ export class ClipboardProvider implements vscode.TreeDataProvider<vscode.TreeIte
     }
 
     private getClipboardFiles(): vscode.TreeItem[] {
-        if (state.clipboardFiles.length === 0) {
+        // Use ClipboardService instead of direct state access
+        const detectedFiles = this.clipboardService.getDetectedFiles();
+
+        if (detectedFiles.length === 0) {
             const item = new vscode.TreeItem('No files detected in clipboard');
             item.description = 'Copy files using the extension to see them here';
             return [item];
         }
 
-        return state.clipboardFiles.map(file => {
+        return detectedFiles.map(file => {
             const fileName = path.basename(file.filePath);
             const item = new vscode.TreeItem(fileName, vscode.TreeItemCollapsibleState.None);
 

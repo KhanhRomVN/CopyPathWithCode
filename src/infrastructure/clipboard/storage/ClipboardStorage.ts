@@ -1,56 +1,101 @@
+/**
+ * FILE: src/infrastructure/clipboard/storage/ClipboardStorage.ts
+ * 
+ * CLIPBOARD STORAGE - INFRASTRUCTURE IMPLEMENTATION
+ * 
+ * Complete implementation bridging clean architecture with legacy state system
+ */
+
 import { IClipboardRepository } from '../../../domain/clipboard/services/ClipboardService';
-import { CopiedFileEntity } from '../../../domain/clipboard/entities/CopiedFile';
-import { ClipboardFileEntity } from '../../../domain/clipboard/entities/ClipboardFile';
-import { state } from '../../../models/models';
+import { CopiedFile } from '../../../domain/clipboard/entities/CopiedFile';
+import { DetectedFile } from '../../../domain/clipboard/entities/DetectedFile';
+import { TempClipboardFile } from '../../../domain/clipboard/entities/TempClipboardFile';
 
 export class ClipboardStorage implements IClipboardRepository {
-    getCopiedFiles(): CopiedFileEntity[] {
-        return state.copiedFiles.map(f =>
-            new CopiedFileEntity(f.displayPath, f.basePath, f.content, f.format)
-        );
+
+    // ==================== COPIED FILES OPERATIONS ====================
+
+    getCopiedFiles(): CopiedFile[] {
+        const { state } = require('../../../models/models');
+        return [...state.copiedFiles]; // Return copy to prevent direct mutation
     }
 
-    setCopiedFiles(files: CopiedFileEntity[]): void {
-        state.copiedFiles = files.map(f => ({
-            displayPath: f.displayPath,
-            basePath: f.basePath,
-            content: f.content,
-            format: f.format
-        }));
+    setCopiedFiles(files: CopiedFile[]): void {
+        const { state } = require('../../../models/models');
+        state.copiedFiles = [...files]; // Store copy to prevent external mutation
     }
 
-    getDetectedFiles(): ClipboardFileEntity[] {
-        return state.clipboardFiles.map(f =>
-            new ClipboardFileEntity(f.filePath, f.content, f.detectedAt)
-        );
+    addCopiedFile(file: CopiedFile): void {
+        const { state } = require('../../../models/models');
+
+        // Remove any existing file with same basePath first
+        state.copiedFiles = state.copiedFiles.filter((f: { basePath: string; }) => f.basePath !== file.basePath);
+
+        // Add the new file
+        state.copiedFiles.push({ ...file }); // Store copy
     }
 
-    setDetectedFiles(files: ClipboardFileEntity[]): void {
-        state.clipboardFiles = files.map(f => ({
-            filePath: f.filePath,
-            content: f.content,
-            detectedAt: f.detectedAt
-        }));
+    removeCopiedFile(basePath: string): void {
+        const { state } = require('../../../models/models');
+        state.copiedFiles = state.copiedFiles.filter((f: { basePath: string; }) => f.basePath !== basePath);
     }
 
-    getTempFiles(): CopiedFileEntity[] {
-        return state.tempClipboard.map(f =>
-            new CopiedFileEntity(f.displayPath, f.basePath, f.content, f.format)
-        );
-    }
-
-    setTempFiles(files: CopiedFileEntity[]): void {
-        state.tempClipboard = files.map(f => ({
-            displayPath: f.displayPath,
-            basePath: f.basePath,
-            content: f.content,
-            format: f.format
-        }));
-    }
-
-    clear(): void {
+    clearCopiedFiles(): void {
+        const { state } = require('../../../models/models');
         state.copiedFiles = [];
+    }
+
+    // ==================== DETECTED FILES OPERATIONS ====================
+
+    getDetectedFiles(): DetectedFile[] {
+        const { state } = require('../../../models/models');
+
+        // Convert ClipboardFile to DetectedFile format
+        return state.clipboardFiles.map((clipboardFile: any) => ({
+            filePath: clipboardFile.filePath,
+            content: clipboardFile.content,
+            detectedAt: clipboardFile.detectedAt
+        }));
+    }
+
+    setDetectedFiles(files: DetectedFile[]): void {
+        const { state } = require('../../../models/models');
+
+        // Convert DetectedFile to ClipboardFile format for legacy compatibility
+        state.clipboardFiles = files.map(file => ({
+            filePath: file.filePath,
+            content: file.content,
+            detectedAt: file.detectedAt
+        }));
+    }
+
+    clearDetectedFiles(): void {
+        const { state } = require('../../../models/models');
         state.clipboardFiles = [];
+    }
+
+    // ==================== TEMP STORAGE OPERATIONS ====================
+
+    getTempFiles(): TempClipboardFile[] {
+        const { state } = require('../../../models/models');
+        return [...state.tempClipboard]; // Return copy to prevent direct mutation
+    }
+
+    setTempFiles(files: TempClipboardFile[]): void {
+        const { state } = require('../../../models/models');
+
+        // Convert TempClipboardFile to CopiedFile format for legacy storage
+        state.tempClipboard = files.map(file => ({
+            displayPath: file.displayPath,
+            basePath: file.basePath,
+            content: file.content,
+            format: file.format
+            // Note: savedAt timestamp is lost in legacy format
+        }));
+    }
+
+    clearTempFiles(): void {
+        const { state } = require('../../../models/models');
         state.tempClipboard = [];
     }
 }
