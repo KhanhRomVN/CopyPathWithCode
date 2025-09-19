@@ -3,19 +3,41 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { state, CopiedFile, ErrorInfo } from '../../models/models';
 import { Logger } from '../../utils/common/logger';
+import { CommandRegistry } from '../../utils/common/CommandRegistry';
 
 // Signature for tracking extension content
 const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';
 
 export function registerCoreCommands(context: vscode.ExtensionContext) {
-    // Register the core commands directly with simple implementations
-    const commands = [
-        vscode.commands.registerCommand('copy-path-with-code.copyPathWithContent', copyPathWithContent),
-        vscode.commands.registerCommand('copy-path-with-code.clearClipboard', clearClipboard),
-        vscode.commands.registerCommand('copy-path-with-code.copyPathWithContentAndError', copyPathWithContentAndError)
-    ];
+    // Đăng ký core commands với CommandRegistry
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.copyPathWithContent',
+        copyPathWithContent
+    );
 
-    commands.forEach(cmd => context.subscriptions.push(cmd));
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.clearClipboard',
+        clearClipboard
+    );
+
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.copyPathWithContentAndError',
+        copyPathWithContentAndError
+    );
+
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.refreshClipboardView',
+        () => {
+            // Cập nhật context cho UI
+            vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles',
+                state.clipboardFiles.length > 0);
+            Logger.debug('Clipboard view refreshed');
+        }
+    );
 }
 
 async function copyPathWithContent() {

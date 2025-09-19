@@ -16,6 +16,8 @@ import { FolderProvider } from '../../providers/FolderProvider';
 import { INotificationService } from '../../application/folder/service/FolderApplicationService';
 import { FolderService } from '../../domain/folder/services/FolderService';
 import { state } from '../../models/models';
+import { CommandRegistry } from '../../utils/common/CommandRegistry';
+import { Logger } from '../../utils/common/logger';
 
 export function registerFolderMenuCommands(context: vscode.ExtensionContext): void {
     const container = ServiceContainer.getInstance();
@@ -24,18 +26,21 @@ export function registerFolderMenuCommands(context: vscode.ExtensionContext): vo
     const notificationService = container.resolve<INotificationService>('INotificationService');
     const folderService = container.resolve<FolderService>('FolderService');
 
-    const commands = [
-        vscode.commands.registerCommand('copy-path-with-code.showFolderMenu', (folderItem) =>
-            handleShowFolderMenu(folderItem, notificationService, folderService)
-        ),
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.showFolderMenu',
+        (folderItem) => handleShowFolderMenu(folderItem, notificationService, folderService)
+    );
 
-        vscode.commands.registerCommand('copy-path-with-code.copyFolderContents', (folderItem) =>
-            handleCopyFolderContents(folderItem, notificationService, folderService)
-        )
-    ];
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.copyFolderContents',
+        (folderItem) => handleCopyFolderContents(folderItem, notificationService, folderService)
+    );
 
-    commands.forEach(cmd => context.subscriptions.push(cmd));
+    Logger.debug('Folder menu commands registered');
 }
+
 
 // =============================================
 // FOLDER MENU COMMAND HANDLERS

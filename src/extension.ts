@@ -10,6 +10,7 @@ import { FileWatcher } from './utils/folder/fileWatcher';
 // Import clipboard services
 import { ClipboardService } from './domain/clipboard/services/ClipboardService';
 import { ClipboardDetectionService } from './domain/clipboard/services/ClipboardDetectionService';
+import { CommandRegistry } from './utils/common/CommandRegistry';
 
 let clipboardMonitoringInterval: NodeJS.Timeout | undefined;
 let clipboardDetector: any;
@@ -61,17 +62,6 @@ export function activate(context: vscode.ExtensionContext) {
         // Set initial context
         vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', 'workspace');
         vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', state.clipboardFiles.length > 0);
-
-        // Register clipboard view refresh command (essential for UI updates)
-        context.subscriptions.push(
-            vscode.commands.registerCommand('copy-path-with-code.refreshClipboardView', () => {
-                clipboardProvider.refresh();
-                const clipboardService = container.resolve<ClipboardService>('ClipboardService');
-                const detectedFiles = clipboardService.getDetectedFiles();
-                vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', detectedFiles.length > 0);
-                Logger.debug('Clipboard view refreshed');
-            })
-        );
 
         // Initialize clipboard detection with clean architecture
         clipboardDetector = initializeClipboardDetector(context, container, clipboardProvider);

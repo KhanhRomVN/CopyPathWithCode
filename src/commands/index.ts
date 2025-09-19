@@ -12,6 +12,7 @@ import { ServiceContainer } from '../infrastructure/di/ServiceContainer';
 import { CommandRegistry } from '../utils/common/CommandRegistry';
 import { Logger } from '../utils/common/logger';
 
+
 // Import command modules
 import { registerCoreCommands } from './clipboard/coreCommands';
 import { registerTempClipboardCommands } from './clipboard/tempClipboardCommands';
@@ -82,17 +83,6 @@ function registerCriticalCommands(
         () => {
             treeDataProvider.refresh();
             Logger.debug('Folder view refreshed');
-        }
-    );
-
-    // Register clipboard view refresh command (essential for UI updates)
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.refreshClipboardView',
-        () => {
-            // Simple function that doesn't reference complex objects
-            vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', false);
-            Logger.debug('Clipboard view refresh command executed');
         }
     );
 
