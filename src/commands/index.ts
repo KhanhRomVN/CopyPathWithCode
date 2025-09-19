@@ -1,8 +1,8 @@
 /**
  * FILE: src/commands/index.ts
  * 
- * COMMANDS INDEX - Central command registration
- * Fixed to prevent duplicate command registrations
+ * COMMANDS INDEX - Simplified command registration
+ * Fixed to prevent "An object could not be cloned" error
  */
 
 import * as vscode from 'vscode';
@@ -11,16 +11,16 @@ import { ClipboardProvider } from '../providers/ClipboardProvider';
 import { ServiceContainer } from '../infrastructure/di/ServiceContainer';
 import { CommandRegistry } from '../utils/common/CommandRegistry';
 import { Logger } from '../utils/common/logger';
-import { INotificationService } from '../application/folder/service/FolderApplicationService';
-import { IWorkspaceService } from '../infrastructure/folder/workspace/WorkspaceService';
 
 // Import command modules
+import { registerCoreCommands } from './clipboard/coreCommands';
+import { registerTempClipboardCommands } from './clipboard/tempClipboardCommands';
 import { registerFolderCommands } from './folder/FolderCommands';
 import { registerFileManagementCommands } from './folder/FileManagementCommands';
 import { registerViewCommands } from './folder/ViewCommands';
 import { registerDirectoryCommands } from './folder/directoryCommands';
 import { registerFolderMenuCommands } from './folder/FolderMenuCommands';
-import { registerContextMenuCommands } from './folder/ContextMenuCommands';
+import { registerContextMenuCommands } from './clipboard/contextMenuCommands';
 
 export function registerAllCommands(
     context: vscode.ExtensionContext,
@@ -33,8 +33,21 @@ export function registerAllCommands(
         // Clear any existing registrations to start fresh
         CommandRegistry.clear();
 
-        // Register critical commands first (these might be needed immediately)
+        // Register core clipboard commands first (these are the main keyboard shortcuts)
+        registerCoreCommands(context);
+        Logger.debug('Core clipboard commands registered');
+
+        // Register temp clipboard commands
+        registerTempClipboardCommands(context);
+        Logger.debug('Temp clipboard commands registered');
+
+        // Register context menu commands
+        registerContextMenuCommands(context);
+        Logger.debug('Context menu commands registered');
+
+        // Register critical commands that are referenced immediately
         registerCriticalCommands(context, treeDataProvider);
+        Logger.debug('Critical commands registered');
 
         // Register command modules
         registerFolderCommands(context);
@@ -46,10 +59,6 @@ export function registerAllCommands(
         // Register additional commands
         registerMainApplicationCommands(context, treeDataProvider, clipboardProvider);
         registerClipboardCommands(context, clipboardProvider);
-
-        registerContextMenuCommands(context);
-        Logger.debug('Context menu commands registered');
-
 
         const registeredCommands = CommandRegistry.getRegisteredCommands();
         Logger.info(`Successfully registered ${registeredCommands.length} commands`);
@@ -66,10 +75,6 @@ function registerCriticalCommands(
     context: vscode.ExtensionContext,
     treeDataProvider: FolderProvider
 ): void {
-    const container = ServiceContainer.getInstance();
-    const notificationService = container.resolve<INotificationService>('INotificationService');
-    const workspaceService = container.resolve<IWorkspaceService>('IWorkspaceService');
-
     // Register refreshFolderView - this is called immediately after extension activation
     CommandRegistry.registerCommand(
         context,
@@ -80,41 +85,33 @@ function registerCriticalCommands(
         }
     );
 
+    // Register clipboard view refresh command (essential for UI updates)
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.refreshClipboardView',
+        () => {
+            // Simple function that doesn't reference complex objects
+            vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', false);
+            Logger.debug('Clipboard view refresh command executed');
+        }
+    );
+
     // Register toggleViewMode - this is referenced in critical flow
     CommandRegistry.registerCommand(
         context,
         'copy-path-with-code.toggleViewMode',
-        () => handleToggleViewMode(treeDataProvider, notificationService, workspaceService)
+        () => handleToggleViewMode(treeDataProvider)
     );
 
     Logger.debug('Critical commands registered');
 }
 
-// Main application commands
+// Main application commands with simplified implementations
 function registerMainApplicationCommands(
     context: vscode.ExtensionContext,
     treeDataProvider: FolderProvider,
     clipboardProvider: ClipboardProvider
 ): void {
-
-    // Copy operations
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.copyPathWithContent',
-        () => vscode.commands.executeCommand('copy-path-with-code.copyPathWithContent')
-    );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.copyPathWithContentAndError',
-        () => vscode.commands.executeCommand('copy-path-with-code.copyPathWithContentAndError')
-    );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.clearClipboard',
-        () => vscode.commands.executeCommand('copy-path-with-code.clearClipboard')
-    );
 
     // Individual file copy from tree
     CommandRegistry.registerCommand(
@@ -123,40 +120,27 @@ function registerMainApplicationCommands(
         (fileItem) => {
             // Handle copying individual file from tree view
             if (fileItem?.resourceUri) {
-                vscode.commands.executeCommand('copy-path-with-code.copyPathWithContent', fileItem.resourceUri);
+                // Use a simple approach instead of complex command chaining
+                const uri = fileItem.resourceUri;
+                vscode.window.showTextDocument(uri).then(() => {
+                    // After opening, execute the copy command
+                    vscode.commands.executeCommand('copy-path-with-code.copyPathWithContent');
+                });
             }
+        }
+    );
+
+    // Show logs command
+    CommandRegistry.registerCommand(
+        context,
+        'copy-path-with-code.showLogs',
+        () => {
+            Logger.show();
         }
     );
 }
 
-// File operations
-function registerFileOperationCommands(context: vscode.ExtensionContext): void {
-    const fileOperations = [
-        'openFile',
-        'openToSide',
-        'openWith',
-        'copyPath',
-        'copyRelativePath',
-        'revealInFileExplorer',
-        'renameFile',
-        'deleteFile',
-        'cutFile',
-        'copyFile',
-        'pasteFile',
-        'newFile',
-        'newFolder'
-    ];
-
-    fileOperations.forEach(operation => {
-        CommandRegistry.registerCommand(
-            context,
-            `copy-path-with-code.${operation}`,
-            (item) => handleFileOperation(operation, item)
-        );
-    });
-}
-
-// Clipboard management commands
+// Clipboard management commands with simplified implementations
 function registerClipboardCommands(
     context: vscode.ExtensionContext,
     clipboardProvider: ClipboardProvider
@@ -166,8 +150,11 @@ function registerClipboardCommands(
         context,
         'copy-path-with-code.toggleClipboardDetection',
         () => {
-            // Toggle clipboard detection logic
-            vscode.window.showInformationMessage('Clipboard detection toggled');
+            // Simple toggle implementation
+            const { state } = require('../models/models');
+            state.isClipboardDetectionEnabled = !state.isClipboardDetectionEnabled;
+            const status = state.isClipboardDetectionEnabled ? 'enabled' : 'disabled';
+            vscode.window.showInformationMessage(`Clipboard detection ${status}`);
         }
     );
 
@@ -194,115 +181,47 @@ function registerClipboardCommands(
             }
         }
     );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.showLogs',
-        () => {
-            Logger.show();
-        }
-    );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.saveClipboardToTemp',
-        () => {
-            // Save clipboard to temp logic
-            vscode.window.showInformationMessage('Clipboard saved to temp');
-        }
-    );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.restoreClipboardFromTemp',
-        () => {
-            // Restore clipboard from temp logic
-            vscode.window.showInformationMessage('Clipboard restored from temp');
-        }
-    );
 }
 
-// Toggle view mode handler
-function handleToggleViewMode(
-    treeDataProvider: FolderProvider,
-    notificationService: INotificationService,
-    workspaceService: IWorkspaceService
-): void {
-    const currentMode = treeDataProvider.getViewMode();
-    const newMode = currentMode === 'workspace' ? 'global' : 'workspace';
+// Simplified toggle view mode handler
+function handleToggleViewMode(treeDataProvider: FolderProvider): void {
+    try {
+        const currentMode = treeDataProvider.getViewMode();
+        const newMode = currentMode === 'workspace' ? 'global' : 'workspace';
 
-    // Validate workspace mode
-    if (newMode === 'workspace' && !workspaceService.hasActiveWorkspace()) {
-        const message = 'Cannot switch to workspace view: no active workspace found. Please open a folder or workspace first.';
-        notificationService.showWarning(message);
+        // Simple validation
+        if (newMode === 'workspace' && !vscode.workspace.workspaceFolders?.length) {
+            vscode.window.showWarningMessage(
+                'Cannot switch to workspace view: no active workspace found. Please open a folder or workspace first.',
+                'Open Folder'
+            ).then(choice => {
+                if (choice === 'Open Folder') {
+                    vscode.commands.executeCommand('workbench.action.files.openFolder');
+                }
+            });
+            return;
+        }
 
-        // Offer to open folder
-        vscode.window.showWarningMessage(
-            message,
-            'Open Folder'
-        ).then(choice => {
-            if (choice === 'Open Folder') {
-                vscode.commands.executeCommand('workbench.action.files.openFolder');
-            }
-        });
-        return;
-    }
+        // Exit file management mode when switching views
+        if (treeDataProvider.isInFileManagementMode()) {
+            treeDataProvider.exitFileManagementMode();
+        }
 
-    // Exit file management mode when switching views
-    if (treeDataProvider.isInFileManagementMode()) {
-        treeDataProvider.exitFileManagementMode();
-    }
+        // Clear search when switching views
+        treeDataProvider.clearSearch();
 
-    // Clear search when switching views
-    treeDataProvider.clearSearch();
+        // Switch view mode
+        treeDataProvider.switchViewMode(newMode);
 
-    // Switch view mode
-    treeDataProvider.switchViewMode(newMode);
+        // Update context for menu visibility
+        vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', newMode);
 
-    // Update context for menu visibility
-    vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', newMode);
+        // Show feedback
+        const modeDisplay = newMode === 'workspace' ? 'Workspace' : 'Global';
+        vscode.window.showInformationMessage(`View mode: ${modeDisplay}`);
 
-    // Show feedback
-    const modeDisplay = newMode === 'workspace' ? 'Workspace' : 'Global';
-    const workspaceInfo = newMode === 'workspace'
-        ? ` (${workspaceService.getCurrentWorkspaceFolder() || 'Unknown'})`
-        : '';
-
-    notificationService.showInfo(`View mode: ${modeDisplay}${workspaceInfo}`);
-}
-
-// File operation handler
-function handleFileOperation(operation: string, item: any): void {
-    if (!item?.resourceUri) {
-        vscode.window.showErrorMessage('No file selected');
-        return;
-    }
-
-    const uri = item.resourceUri;
-
-    switch (operation) {
-        case 'openFile':
-            vscode.commands.executeCommand('vscode.open', uri);
-            break;
-        case 'openToSide':
-            vscode.commands.executeCommand('vscode.open', uri, { viewColumn: vscode.ViewColumn.Beside });
-            break;
-        case 'openWith':
-            vscode.commands.executeCommand('vscode.openWith', uri);
-            break;
-        case 'copyPath':
-            vscode.env.clipboard.writeText(uri.fsPath);
-            vscode.window.showInformationMessage('Path copied to clipboard');
-            break;
-        case 'copyRelativePath':
-            const relativePath = vscode.workspace.asRelativePath(uri);
-            vscode.env.clipboard.writeText(relativePath);
-            vscode.window.showInformationMessage('Relative path copied to clipboard');
-            break;
-        case 'revealInFileExplorer':
-            vscode.commands.executeCommand('revealFileInOS', uri);
-            break;
-        default:
-            vscode.window.showErrorMessage(`Operation '${operation}' not implemented`);
+    } catch (error) {
+        Logger.error('Failed to toggle view mode', error);
+        vscode.window.showErrorMessage('Failed to toggle view mode');
     }
 }

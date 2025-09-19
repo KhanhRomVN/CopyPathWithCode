@@ -1,16 +1,20 @@
 /**
- * Updated ServiceContainer with proper FolderProvider integration and fixed registrations
+ * Updated ServiceContainer with Clipboard Clean Architecture Integration
  */
 
 import * as vscode from 'vscode';
 
-// Domain Services
+// Domain Services - Folder
 import { FolderService, IFolderRepository } from '../../domain/folder/services/FolderService';
 import { FileService, IFileSystemService } from '../../domain/folder/services/FileService';
 import { TreeService, IPathService } from '../../domain/folder/services/TreeService';
 import { FolderValidator } from '../../domain/folder/validators/FolderValidator';
 
-// Infrastructure Services
+// Domain Services - Clipboard
+import { ClipboardService, IClipboardRepository, IClipboardSystemService } from '../../domain/clipboard/services/ClipboardService';
+import { ClipboardDetectionService } from '../../domain/clipboard/services/ClipboardDetectionService';
+
+// Infrastructure Services - Folder
 import { FolderStorage } from '../folder/storage/FolderStorage';
 import { VSCodeFileSystemService } from '../folder/filesystem/FileSystemService';
 import { VSCodeWorkspaceService, IWorkspaceService } from '../folder/workspace/WorkspaceService';
@@ -19,7 +23,12 @@ import { VSCodeUIRefreshService } from '../folder/ui/UIRefreshService';
 import { VSCodeEditorService, IEditorService } from '../folder/ui/EditorService';
 import { NodePathService } from '../shared/PathService';
 
-// Application Services
+// Infrastructure Services - Clipboard
+import { ClipboardStorage } from '../clipboard/storage/ClipboardStorage';
+import { VSCodeClipboardService } from '../clipboard/system/VSCodeClipboardService';
+import { VSCodeClipboardNotificationService, IClipboardNotificationService } from '../clipboard/ui/ClipboardNotificationService';
+
+// Application Services - Folder
 import { CreateFolderUseCase } from '../../application/folder/usecases/CreateFolderUseCase';
 import { DeleteFolderUseCase } from '../../application/folder/usecases/DeleteFolderUseCase';
 import { RenameFolderUseCase } from '../../application/folder/usecases/RenameFolderUseCase';
@@ -27,6 +36,13 @@ import { AddFileToFolderUseCase } from '../../application/folder/usecases/AddFil
 import { RemoveFileFromFolderUseCase } from '../../application/folder/usecases/RemoveFileFromFolderUseCase';
 import { OpenFolderFilesUseCase } from '../../application/folder/usecases/OpenFolderFilesUseCase';
 import { FolderApplicationService, INotificationService, IUIRefreshService } from '../../application/folder/service/FolderApplicationService';
+
+// Application Services - Clipboard
+import { CopyFileContentUseCase } from '../../application/clipboard/usecases/CopyFileContentUseCase';
+import { ClearClipboardUseCase } from '../../application/clipboard/usecases/ClearClipboardUseCase';
+import { SaveToTempUseCase } from '../../application/clipboard/usecases/SaveToTempUseCase';
+import { RestoreFromTempUseCase } from '../../application/clipboard/usecases/RestoreFromTempUseCase';
+import { ClipboardApplicationService, IClipboardUIRefreshService } from '../../application/clipboard/service/ClipboardApplicationService';
 
 // Types for FolderProvider dependency
 import { Folder } from '../../domain/folder/entities/Folder';
@@ -63,12 +79,13 @@ export class ServiceContainer {
         this.registerDomainServices();
         this.registerApplicationServices();
         this.registerTreeService();
+        this.registerClipboardServices();
 
         this.isInitialized = true;
     }
 
     private registerInfrastructureServices(context: vscode.ExtensionContext): void {
-        // Storage
+        // Folder Storage
         const folderStorage = new FolderStorage(context);
         this.register<IFolderRepository>('IFolderRepository', folderStorage);
 
@@ -90,6 +107,16 @@ export class ServiceContainer {
 
         const editorService = new VSCodeEditorService();
         this.register<IEditorService>('IEditorService', editorService);
+
+        // Clipboard Infrastructure Services
+        const clipboardRepository = new ClipboardStorage();
+        this.register<IClipboardRepository>('IClipboardRepository', clipboardRepository);
+
+        const clipboardSystemService = new VSCodeClipboardService();
+        this.register<IClipboardSystemService>('IClipboardSystemService', clipboardSystemService);
+
+        const clipboardNotificationService = new VSCodeClipboardNotificationService();
+        this.register<IClipboardNotificationService>('IClipboardNotificationService', clipboardNotificationService);
     }
 
     private registerDomainServices(): void {
@@ -97,11 +124,10 @@ export class ServiceContainer {
         const fileSystemService = this.resolve<IFileSystemService>('IFileSystemService');
         const pathService = this.resolve<IPathService>('IPathService');
 
-        // Validator
+        // Folder Domain Services
         const folderValidator = new FolderValidator();
         this.register('FolderValidator', folderValidator);
 
-        // Domain Services
         const folderService = new FolderService(folderRepository, folderValidator);
         this.register('FolderService', folderService);
 
@@ -110,13 +136,23 @@ export class ServiceContainer {
 
         const treeService = new TreeService(pathService);
         this.register('TreeService', treeService);
+
+        // Clipboard Domain Services
+        const clipboardRepository = this.resolve<IClipboardRepository>('IClipboardRepository');
+        const clipboardSystemService = this.resolve<IClipboardSystemService>('IClipboardSystemService');
+
+        const clipboardService = new ClipboardService(clipboardRepository, clipboardSystemService);
+        this.register('ClipboardService', clipboardService);
+
+        const clipboardDetectionService = new ClipboardDetectionService();
+        this.register('ClipboardDetectionService', clipboardDetectionService);
     }
 
     private registerApplicationServices(): void {
         const folderService = this.resolve<FolderService>('FolderService');
         const fileService = this.resolve<FileService>('FileService');
 
-        // Use Cases
+        // Folder Use Cases
         const createFolderUseCase = new CreateFolderUseCase(folderService);
         this.register('CreateFolderUseCase', createFolderUseCase);
 
@@ -134,6 +170,27 @@ export class ServiceContainer {
 
         const openFolderFilesUseCase = new OpenFolderFilesUseCase(folderService, fileService);
         this.register('OpenFolderFilesUseCase', openFolderFilesUseCase);
+
+        // Clipboard Use Cases
+        const clipboardService = this.resolve<ClipboardService>('ClipboardService');
+        const clipboardNotificationService = this.resolve<IClipboardNotificationService>('IClipboardNotificationService');
+
+        const copyFileContentUseCase = new CopyFileContentUseCase(clipboardService, clipboardNotificationService);
+        this.register('CopyFileContentUseCase', copyFileContentUseCase);
+
+        const clearClipboardUseCase = new ClearClipboardUseCase(clipboardService, clipboardNotificationService);
+        this.register('ClearClipboardUseCase', clearClipboardUseCase);
+
+        const saveToTempUseCase = new SaveToTempUseCase(clipboardService, clipboardNotificationService);
+        this.register('SaveToTempUseCase', saveToTempUseCase);
+
+        const restoreFromTempUseCase = new RestoreFromTempUseCase(clipboardService, clipboardNotificationService);
+        this.register('RestoreFromTempUseCase', restoreFromTempUseCase);
+    }
+
+    private registerClipboardServices(): void {
+        // Already registered in registerApplicationServices
+        // This method kept for consistency and future clipboard-specific services
     }
 
     private registerTreeService(): void {
@@ -143,13 +200,13 @@ export class ServiceContainer {
     }
 
     // Call this after FolderProvider is created to complete the dependency chain
-    registerUIServices(treeDataProvider: any): void {
-        // UI Refresh Service (needs tree data provider)
+    registerUIServices(treeDataProvider: any, clipboardProvider?: any): void {
+        // Folder UI Refresh Service
         const uiRefreshService = new VSCodeUIRefreshService(treeDataProvider);
         this.register<IUIRefreshService>('IUIRefreshService', uiRefreshService);
 
-        // Command Handler
-        const commandHandler = new FolderApplicationService(
+        // Folder Command Handler
+        const folderApplicationService = new FolderApplicationService(
             this.resolve('CreateFolderUseCase'),
             this.resolve('DeleteFolderUseCase'),
             this.resolve('RenameFolderUseCase'),
@@ -159,10 +216,65 @@ export class ServiceContainer {
             this.resolve<INotificationService>('INotificationService'),
             uiRefreshService
         );
-        this.register('FolderApplicationService', commandHandler);
+        this.register('FolderApplicationService', folderApplicationService);
 
         // Also register the FolderProvider instance for command access
         this.register('FolderProvider', treeDataProvider);
+
+        // Clipboard UI Services
+        if (clipboardProvider) {
+            const clipboardUIRefreshService: IClipboardUIRefreshService = {
+                refreshClipboardView: () => {
+                    clipboardProvider.refresh();
+                    // Update context for UI visibility
+                    const clipboardService = this.resolve<ClipboardService>('ClipboardService');
+                    const detectedFiles = clipboardService.getDetectedFiles();
+                    vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles', detectedFiles.length > 0);
+                },
+                updateStatusBar: () => this.updateClipboardStatusBar()
+            };
+            this.register<IClipboardUIRefreshService>('IClipboardUIRefreshService', clipboardUIRefreshService);
+
+            // Clipboard Application Service
+            const clipboardApplicationService = new ClipboardApplicationService(
+                this.resolve('CopyFileContentUseCase'),
+                this.resolve('ClearClipboardUseCase'),
+                this.resolve('SaveToTempUseCase'),
+                this.resolve('RestoreFromTempUseCase'),
+                clipboardUIRefreshService
+            );
+            this.register('ClipboardApplicationService', clipboardApplicationService);
+
+            // Register clipboard provider
+            this.register('ClipboardProvider', clipboardProvider);
+        }
+    }
+
+    private updateClipboardStatusBar(): void {
+        const clipboardService = this.resolve<ClipboardService>('ClipboardService');
+        const copiedFiles = clipboardService.getCopiedFiles();
+        const tempFiles = clipboardService.getTempFiles();
+
+        // Import state dynamically to avoid circular dependency
+        const { state } = require('../../models/models');
+
+        if (state.statusBarItem) {
+            const count = copiedFiles.length;
+            const tempText = tempFiles.length > 0 ? ` | Temp: ${tempFiles.length}` : '';
+
+            if (count > 0 && tempFiles.length > 0) {
+                state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
+                state.statusBarItem.show();
+            } else if (count > 0) {
+                state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
+                state.statusBarItem.show();
+            } else if (tempFiles.length > 0) {
+                state.statusBarItem.text = `$(archive) Temp: ${tempFiles.length} file${tempFiles.length > 1 ? 's' : ''}`;
+                state.statusBarItem.show();
+            } else {
+                state.statusBarItem.hide();
+            }
+        }
     }
 
     private createFolderTreeService(): IFolderTreeService {
