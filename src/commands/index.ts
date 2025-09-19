@@ -23,6 +23,7 @@ import { registerContextMenuCommands } from './clipboard/contextMenuCommands';
 
 // Import services for clipboard commands
 import { ClipboardService } from '../domain/clipboard/services/ClipboardService';
+import path from 'path';
 
 export function registerAllCommands(
     context: vscode.ExtensionContext,
@@ -108,15 +109,28 @@ function registerMainApplicationCommands(
     CommandRegistry.registerCommand(
         context,
         'copy-path-with-code.copyIndividualFile',
-        (fileItem) => {
-            // Handle copying individual file from tree view
-            if (fileItem?.resourceUri) {
-                // Use a simple approach instead of complex command chaining
-                const uri = fileItem.resourceUri;
-                vscode.window.showTextDocument(uri).then(() => {
-                    // After opening, execute the copy command
-                    vscode.commands.executeCommand('copy-path-with-code.copyPathWithContent');
-                });
+        async (fileItem) => {
+            if (!fileItem?.resourceUri) {
+                return;
+            }
+
+            const uri = fileItem.resourceUri;
+            try {
+                const container = ServiceContainer.getInstance();
+                const clipboardService = container.resolve<ClipboardService>('ClipboardService');
+
+                // Read file content without opening the file in the editor
+                const document = await vscode.workspace.openTextDocument(uri);
+                const content = document.getText();
+
+                // Use clipboard service to copy - THÊM THAM SỐ format
+                await clipboardService.copyFileContent(uri.toString(), content, 'normal');
+
+                // Show notification
+                vscode.window.showInformationMessage(`Copied: ${path.basename(uri.fsPath)}`);
+
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to copy file: ${error}`);
             }
         }
     );

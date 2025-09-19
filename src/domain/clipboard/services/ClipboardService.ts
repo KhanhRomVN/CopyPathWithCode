@@ -7,6 +7,7 @@
  * including copy, paste, detection, temp storage, and integrity checking.
  */
 
+import { ErrorInfo } from '../../../models/models';
 import { CopiedFile } from '../entities/CopiedFile';
 import { DetectedFile } from '../entities/DetectedFile';
 import { TempClipboardFile } from '../entities/TempClipboardFile';
@@ -108,7 +109,8 @@ export class ClipboardService {
         displayPath: string,
         basePath: string,
         content: string,
-        format: 'normal' | 'error' = 'normal'
+        format: 'normal' | 'error' = 'normal',
+        errorInfo?: ErrorInfo
     ): Promise<void> {
         const formattedContent = this.formatFileContent(displayPath, content);
 
