@@ -203,13 +203,21 @@ export class ClipboardService {
             const hasSignature = clipboardText.endsWith(this.TRACKING_SIGNATURE);
 
             if (!hasSignature && this.repository.getCopiedFiles().length > 0) {
-                // Content was modified externally, clear our tracking
+                // Content was modified externally, clear our tracking immediately
                 this.repository.clearCopiedFiles();
+
+                // IMPORTANT: Trigger UI update immediately
+                this.notificationService?.showInfo('Clipboard modified externally - cleared file tracking');
+
                 return false;
             }
 
             return hasSignature;
         } catch (error) {
+            // On any error, clear the tracked files to be safe
+            if (this.repository.getCopiedFiles().length > 0) {
+                this.repository.clearCopiedFiles();
+            }
             return false;
         }
     }

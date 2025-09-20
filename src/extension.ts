@@ -107,14 +107,23 @@ function startClipboardMonitoring(container: ServiceContainer) {
             const copiedFiles = clipboardService.getCopiedFiles();
 
             if (copiedFiles.length > 0) {
-                await clipboardService.checkClipboardIntegrity();
+                const integrityOk = await clipboardService.checkClipboardIntegrity();
+
+                // FIXED: Force statusbar update when integrity check clears files
+                if (!integrityOk) {
+                    // Update status bar immediately after files are cleared
+                    container.updateClipboardStatusBar?.();
+
+                    // Also refresh clipboard view
+                    vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
+                }
             }
         } catch (error) {
             Logger.error('Error during clipboard monitoring', error);
         }
     }, 2000);
 
-    Logger.debug('Clipboard monitoring started');
+    Logger.debug('Clipboard monitoring started with enhanced integrity checking');
 }
 
 export function deactivate() {

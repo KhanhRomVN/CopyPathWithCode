@@ -40,8 +40,16 @@
         "title": "Copy Path and Content with Error"
       },
       {
-        "command": "copy-path-with-code.clearClipboard",
-        "title": "Clear Copied Paths and Content"
+        "command": "copy-path-with-code.transferTempToSystem",
+        "title": "Transfer Temp Storage to System Clipboard"
+      },
+      {
+        "command": "copy-path-with-code.clearTempStorage",
+        "title": "Clear Workspace Temporary Storage"
+      },
+      {
+        "command": "copy-path-with-code.clearAllClipboard",
+        "title": "Clear All Clipboard Data"
       },
       {
         "command": "copy-path-with-code.createFolder",
@@ -240,7 +248,12 @@
         "when": "editorTextFocus"
       },
       {
-        "command": "copy-path-with-code.clearClipboard",
+        "command": "copy-path-with-code.transferTempToSystem",
+        "key": "ctrl+alt+q",
+        "mac": "cmd+alt+q"
+      },
+      {
+        "command": "copy-path-with-code.clearTempStorage",
         "key": "ctrl+alt+z",
         "mac": "cmd+alt+z"
       },
@@ -425,6 +438,16 @@
           "default": true,
           "description": "Automatically detect files from clipboard content"
         },
+        "copyPathWithCode.enableTempStorage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable workspace-specific temporary storage for copied files"
+        },
+        "copyPathWithCode.tempStorageCleanupDays": {
+          "type": "number",
+          "default": 7,
+          "description": "Number of days to keep files in temporary storage before cleanup"
+        },
         "copyPathWithCode.showFileCount": {
           "type": "boolean",
           "default": true,
@@ -482,6 +505,15 @@
           "dark": "#FFC107",
           "light": "#FF8F00",
           "highContrast": "#FFFF00"
+        }
+      },
+      {
+        "id": "copyPathWithCode.tempStorageIndicator",
+        "description": "Color for temporary storage indicators",
+        "defaults": {
+          "dark": "#9C27B0",
+          "light": "#6A1B9A",
+          "highContrast": "#FF00FF"
         }
       }
     ]

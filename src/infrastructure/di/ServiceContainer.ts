@@ -1,6 +1,6 @@
 /**
- * Updated ServiceContainer with FileSystem Storage for cross-window synchronization
- * TEMP CLIPBOARD FUNCTIONALITY REMOVED
+ * Updated ServiceContainer with Transfer Functionality
+ * REMOVED RESTORE FUNCTIONALITY, ADDED TRANSFER FUNCTIONALITY
  */
 
 import * as vscode from 'vscode';
@@ -14,9 +14,10 @@ import { FolderValidator } from '../../domain/folder/validators/FolderValidator'
 // Domain Services - Clipboard
 import { ClipboardService, IClipboardRepository, IClipboardSystemService } from '../../domain/clipboard/services/ClipboardService';
 import { ClipboardDetectionService } from '../../domain/clipboard/services/ClipboardDetectionService';
+import { TempStorageService, ITempStorageRepository } from '../../domain/clipboard/services/TempStorageService';
 
-// Infrastructure Services - Folder (UPDATED)
-import { FileSystemFolderStorage } from '../folder/storage/FileSystemFolderStorage'; // NEW
+// Infrastructure Services - Folder
+import { FileSystemFolderStorage } from '../folder/storage/FileSystemFolderStorage';
 import { VSCodeFileSystemService } from '../folder/filesystem/FileSystemService';
 import { VSCodeWorkspaceService, IWorkspaceService } from '../folder/workspace/WorkspaceService';
 import { VSCodeNotificationService } from '../folder/ui/NotificationService';
@@ -28,6 +29,7 @@ import { NodePathService } from '../shared/PathService';
 import { ClipboardStorage } from '../clipboard/storage/ClipboardStorage';
 import { VSCodeClipboardService } from '../clipboard/system/VSCodeClipboardService';
 import { VSCodeClipboardNotificationService, IClipboardNotificationService } from '../clipboard/ui/ClipboardNotificationService';
+import { TempStorage } from '../clipboard/storage/TempStorage';
 
 // Application Services - Folder
 import { CreateFolderUseCase } from '../../application/folder/usecases/CreateFolderUseCase';
@@ -41,6 +43,7 @@ import { FolderApplicationService, INotificationService, IUIRefreshService } fro
 // Application Services - Clipboard
 import { CopyFileContentUseCase } from '../../application/clipboard/usecases/CopyFileContentUseCase';
 import { ClearClipboardUseCase } from '../../application/clipboard/usecases/ClearClipboardUseCase';
+import { SaveToTempUseCase, TransferTempToSystemUseCase, ClearTempStorageUseCase } from '../../application/clipboard/usecases/TempClipboardUseCases';
 import { ClipboardApplicationService, IClipboardUIRefreshService } from '../../application/clipboard/service/ClipboardApplicationService';
 
 // Types for FolderProvider dependency
@@ -84,9 +87,10 @@ export class ServiceContainer {
         this.isInitialized = true;
     }
 
+
     private registerInfrastructureServices(context: vscode.ExtensionContext): void {
-        // UPDATED: Use enhanced FileSystem storage with improved synchronization
-        const folderStorage = new FileSystemFolderStorage(context); // This now uses the enhanced version
+        // Folder Infrastructure Services
+        const folderStorage = new FileSystemFolderStorage(context);
         this.register<IFolderRepository>('IFolderRepository', folderStorage);
 
         // File System
@@ -117,6 +121,10 @@ export class ServiceContainer {
 
         const clipboardNotificationService = new VSCodeClipboardNotificationService();
         this.register<IClipboardNotificationService>('IClipboardNotificationService', clipboardNotificationService);
+
+        // Temporary Storage Infrastructure
+        const tempStorage = new TempStorage(context);
+        this.register<ITempStorageRepository>('ITempStorageRepository', tempStorage);
     }
 
     private registerDomainServices(): void {
@@ -146,6 +154,11 @@ export class ServiceContainer {
 
         const clipboardDetectionService = new ClipboardDetectionService();
         this.register('ClipboardDetectionService', clipboardDetectionService);
+
+        // Temporary Storage Domain Service
+        const tempStorageRepository = this.resolve<ITempStorageRepository>('ITempStorageRepository');
+        const tempStorageService = new TempStorageService(tempStorageRepository);
+        this.register('TempStorageService', tempStorageService);
     }
 
     private registerApplicationServices(): void {
@@ -171,9 +184,10 @@ export class ServiceContainer {
         const openFolderFilesUseCase = new OpenFolderFilesUseCase(folderService, fileService);
         this.register('OpenFolderFilesUseCase', openFolderFilesUseCase);
 
-        // Clipboard Use Cases (Temp removed)
+        // Clipboard Use Cases
         const clipboardService = this.resolve<ClipboardService>('ClipboardService');
         const clipboardNotificationService = this.resolve<IClipboardNotificationService>('IClipboardNotificationService');
+        const tempStorageService = this.resolve<TempStorageService>('TempStorageService');
 
         const copyFileContentUseCase = new CopyFileContentUseCase(clipboardService, clipboardNotificationService);
         this.register('CopyFileContentUseCase', copyFileContentUseCase);
@@ -181,16 +195,23 @@ export class ServiceContainer {
         const clearClipboardUseCase = new ClearClipboardUseCase(clipboardService, clipboardNotificationService);
         this.register('ClearClipboardUseCase', clearClipboardUseCase);
 
-        // Temp use cases removed - no longer needed
+        // Temporary Storage Use Cases (UPDATED - Removed Restore, Added Transfer)
+        const saveToTempUseCase = new SaveToTempUseCase(tempStorageService, clipboardService, clipboardNotificationService);
+        this.register('SaveToTempUseCase', saveToTempUseCase);
+
+        const transferTempToSystemUseCase = new TransferTempToSystemUseCase(tempStorageService, clipboardService, clipboardNotificationService);
+        this.register('TransferTempToSystemUseCase', transferTempToSystemUseCase);
+
+        const clearTempStorageUseCase = new ClearTempStorageUseCase(tempStorageService, clipboardNotificationService);
+        this.register('ClearTempStorageUseCase', clearTempStorageUseCase);
     }
 
     private registerClipboardServices(): void {
-        // Already registered in registerApplicationServices
-        // This method kept for consistency and future clipboard-specific services
+        // Clipboard services are already registered in registerApplicationServices
+        // This method kept for consistency
     }
 
     private registerTreeService(): void {
-        // Create folder tree service adapter
         const folderTreeService = this.createFolderTreeService();
         this.register<IFolderTreeService>('IFolderTreeService', folderTreeService);
     }
@@ -231,12 +252,13 @@ export class ServiceContainer {
             };
             this.register<IClipboardUIRefreshService>('IClipboardUIRefreshService', clipboardUIRefreshService);
 
-            // Clipboard Application Service (Temp functionality removed)
+            // Enhanced Clipboard Application Service with temp storage (UPDATED)
             const clipboardApplicationService = new ClipboardApplicationService(
                 this.resolve('CopyFileContentUseCase'),
                 this.resolve('ClearClipboardUseCase'),
-                // Removed: saveToTempUseCase
-                // Removed: restoreFromTempUseCase
+                this.resolve('SaveToTempUseCase'),
+                this.resolve('TransferTempToSystemUseCase'), // CHANGED from RestoreFromTempUseCase
+                this.resolve('ClearTempStorageUseCase'),
                 clipboardUIRefreshService
             );
             this.register('ClipboardApplicationService', clipboardApplicationService);
@@ -246,25 +268,46 @@ export class ServiceContainer {
         }
     }
 
-    private updateClipboardStatusBar(): void {
+    public updateClipboardStatusBar(): void {
         const clipboardService = this.resolve<ClipboardService>('ClipboardService');
         const copiedFiles = clipboardService.getCopiedFiles();
-        // Temp files removed - no longer needed
+        const tempStorageService = this.resolve<TempStorageService>('TempStorageService');
+        const tempStats = tempStorageService.getTempStats();
 
         // Import state dynamically to avoid circular dependency
         const { state } = require('../../models/models');
 
         if (state.statusBarItem) {
-            const count = copiedFiles.length;
+            const systemCount = copiedFiles.length;
+            const tempCount = tempStats.count;
 
-            if (count > 0) {
-                state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
+            // FIXED: Show statusbar only if there are actually files
+            if (systemCount > 0 || tempCount > 0) {
+                let statusText = '';
+
+                // Show system clipboard files if available
+                if (systemCount > 0) {
+                    statusText = `$(clippy) ${systemCount} system`;
+                }
+
+                // Show temp storage files if available
+                if (tempCount > 0) {
+                    if (statusText) {
+                        statusText += ` | $(archive) ${tempCount} temp`;
+                    } else {
+                        statusText = `$(archive) ${tempCount} temp`;
+                    }
+                }
+
+                state.statusBarItem.text = statusText;
                 state.statusBarItem.show();
             } else {
+                // FIXED: Hide statusbar when no files exist
                 state.statusBarItem.hide();
             }
         }
     }
+
 
     private createFolderTreeService(): IFolderTreeService {
         const folderService = this.resolve<FolderService>('FolderService');
@@ -329,9 +372,15 @@ export class ServiceContainer {
             folderStorage.dispose();
         }
 
+        // Dispose temp storage if it has a dispose method
+        const tempStorage = this.services.get('ITempStorageRepository');
+        if (tempStorage && typeof tempStorage.cleanup === 'function') {
+            tempStorage.cleanup();
+        }
+
         this.services.clear();
         this.isInitialized = false;
 
-        Logger.debug('ServiceContainer disposed with enhanced cleanup');
+        Logger.debug('ServiceContainer disposed with temp storage cleanup');
     }
 }
