@@ -2,6 +2,7 @@
  * FILE: src/utils/clipboardUtils.ts
  * 
  * CLIPBOARD UTILITIES - TIỆN ÍCH XỬ LÝ CLIPBOARD
+ * TEMP CLIPBOARD FUNCTIONALITY REMOVED
  * 
  * Các hàm tiện ích liên quan đến xử lý clipboard và nội dung copy.
  * 
@@ -11,10 +12,8 @@
  * - clearClipboard: Xóa clipboard
  * - copyFolderContents: Copy toàn bộ nội dung thư mục
  * - checkClipboardIntegrity: Kiểm tra tính toàn vẹn của clipboard
- * - canSaveToTemp: Kiểm tra có thể lưu vào temp không
  * - Quản lý tracking signature để nhận diện content của extension
  */
-
 
 import * as vscode from 'vscode';
 import * as path from 'path';
@@ -206,9 +205,12 @@ async function updateClipboardWithSignature() {
 function updateStatusBar() {
     if (state.statusBarItem) {
         const count = state.copiedFiles.length;
-        const tempText = state.tempClipboard.length > 0 ? ` | Temp: ${state.tempClipboard.length}` : '';
-        state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
-        state.statusBarItem.show();
+        if (count > 0) {
+            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
+            state.statusBarItem.show();
+        } else {
+            state.statusBarItem.hide();
+        }
     }
 }
 
@@ -226,14 +228,8 @@ export async function clearClipboard() {
         vscode.window.showInformationMessage('Clipboard cleared');
 
         if (state.statusBarItem) {
-            if (state.tempClipboard.length > 0) {
-                const tempText = `$(archive) Temp: ${state.tempClipboard.length} file${state.tempClipboard.length > 1 ? 's' : ''}`;
-                state.statusBarItem.text = tempText;
-                state.statusBarItem.show();
-            } else {
-                state.statusBarItem.hide();
-            }
-            Logger.debug('Status bar updated after clear');
+            state.statusBarItem.hide();
+            Logger.debug('Status bar hidden after clear');
         }
 
         // Refresh the clipboard view
@@ -317,11 +313,6 @@ export async function checkClipboardIntegrity(): Promise<boolean> {
         Logger.error('Failed to check clipboard integrity', error);
         return false;
     }
-}
-
-// Function to validate save to temp operation
-export function canSaveToTemp(): boolean {
-    return state.copiedFiles.length > 0;
 }
 
 export { TRACKING_SIGNATURE };

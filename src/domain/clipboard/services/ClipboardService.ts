@@ -2,15 +2,16 @@
  * FILE: src/domain/clipboard/services/ClipboardService.ts
  * 
  * CLIPBOARD SERVICE - DOMAIN SERVICE FOR CLIPBOARD OPERATIONS
+ * TEMP CLIPBOARD FUNCTIONALITY REMOVED
  * 
- * Complete service implementation handling all clipboard-related operations
- * including copy, paste, detection, temp storage, and integrity checking.
+ * Complete service implementation handling clipboard-related operations
+ * including copy, paste, detection, and integrity checking.
  */
 
 import { ErrorInfo } from '../../../models/models';
 import { CopiedFile } from '../entities/CopiedFile';
 import { DetectedFile } from '../entities/DetectedFile';
-import { TempClipboardFile } from '../entities/TempClipboardFile';
+// TempClipboardFile removed - no longer needed
 
 // Repository interface for clipboard data persistence
 export interface IClipboardRepository {
@@ -26,10 +27,8 @@ export interface IClipboardRepository {
     setDetectedFiles(files: DetectedFile[]): void;
     clearDetectedFiles(): void;
 
-    // Temp storage operations
-    getTempFiles(): TempClipboardFile[];
-    setTempFiles(files: TempClipboardFile[]): void;
-    clearTempFiles(): void;
+    // Temp storage operations - REMOVED
+    // All temp-related methods have been removed
 }
 
 // System service interface for clipboard system operations
@@ -193,71 +192,6 @@ export class ClipboardService {
         this.repository.clearDetectedFiles();
     }
 
-    // ==================== TEMP STORAGE OPERATIONS ====================
-
-    /**
-     * Get temporary stored files
-     */
-    getTempFiles(): TempClipboardFile[] {
-        return this.repository.getTempFiles();
-    }
-
-    /**
-     * Save current clipboard to temporary storage
-     */
-    async saveToTemp(): Promise<void> {
-        const copiedFiles = this.repository.getCopiedFiles();
-
-        if (copiedFiles.length === 0) {
-            this.notificationService?.showWarning('No files to save to temp storage');
-            return;
-        }
-
-        // Convert to temp format with timestamp
-        const tempFiles: TempClipboardFile[] = copiedFiles.map(file => ({
-            ...file,
-            savedAt: Date.now()
-        }));
-
-        this.repository.setTempFiles(tempFiles);
-        this.notificationService?.showInfo(`Saved ${copiedFiles.length} file${copiedFiles.length > 1 ? 's' : ''} to temp storage`);
-    }
-
-    /**
-     * Restore files from temporary storage
-     */
-    async restoreFromTemp(): Promise<void> {
-        const tempFiles = this.repository.getTempFiles();
-
-        if (tempFiles.length === 0) {
-            this.notificationService?.showWarning('No files in temp storage');
-            return;
-        }
-
-        // Convert back to copied files format
-        const copiedFiles: CopiedFile[] = tempFiles.map(file => ({
-            displayPath: file.displayPath,
-            basePath: file.basePath,
-            content: file.content,
-            format: file.format
-        }));
-
-        await this.setCopiedFiles(copiedFiles);
-        this.notificationService?.showInfo(`Restored ${copiedFiles.length} file${copiedFiles.length > 1 ? 's' : ''} from temp storage`);
-    }
-
-    /**
-     * Clear temporary storage
-     */
-    async clearTempStorage(): Promise<void> {
-        const count = this.repository.getTempFiles().length;
-        this.repository.clearTempFiles();
-
-        if (count > 0) {
-            this.notificationService?.showInfo(`Cleared ${count} file${count > 1 ? 's' : ''} from temp storage`);
-        }
-    }
-
     // ==================== CLIPBOARD INTEGRITY ====================
 
     /**
@@ -344,26 +278,17 @@ export class ClipboardService {
     getClipboardStats(): {
         copiedFiles: number;
         detectedFiles: number;
-        tempFiles: number;
     } {
         return {
             copiedFiles: this.repository.getCopiedFiles().length,
             detectedFiles: this.repository.getDetectedFiles().length,
-            tempFiles: this.repository.getTempFiles().length
         };
     }
 
     /**
-     * Check if there are any files that can be saved to temp
+     * Check if there are any files copied (used for UI state)
      */
-    canSaveToTemp(): boolean {
+    hasCopiedFiles(): boolean {
         return this.repository.getCopiedFiles().length > 0;
-    }
-
-    /**
-     * Check if there are any files that can be restored from temp
-     */
-    canRestoreFromTemp(): boolean {
-        return this.repository.getTempFiles().length > 0;
     }
 }

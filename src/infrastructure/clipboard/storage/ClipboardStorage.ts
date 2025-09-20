@@ -2,6 +2,7 @@
  * FILE: src/infrastructure/clipboard/storage/ClipboardStorage.ts
  * 
  * CLIPBOARD STORAGE - INFRASTRUCTURE IMPLEMENTATION
+ * TEMP CLIPBOARD FUNCTIONALITY REMOVED
  * 
  * Complete implementation bridging clean architecture with legacy state system
  */
@@ -9,7 +10,7 @@
 import { IClipboardRepository } from '../../../domain/clipboard/services/ClipboardService';
 import { CopiedFile } from '../../../domain/clipboard/entities/CopiedFile';
 import { DetectedFile } from '../../../domain/clipboard/entities/DetectedFile';
-import { TempClipboardFile } from '../../../domain/clipboard/entities/TempClipboardFile';
+// TempClipboardFile removed - no longer needed
 
 export class ClipboardStorage implements IClipboardRepository {
 
@@ -74,28 +75,9 @@ export class ClipboardStorage implements IClipboardRepository {
         state.clipboardFiles = [];
     }
 
-    // ==================== TEMP STORAGE OPERATIONS ====================
-
-    getTempFiles(): TempClipboardFile[] {
-        const { state } = require('../../../models/models');
-        return [...state.tempClipboard]; // Return copy to prevent direct mutation
-    }
-
-    setTempFiles(files: TempClipboardFile[]): void {
-        const { state } = require('../../../models/models');
-
-        // Convert TempClipboardFile to CopiedFile format for legacy storage
-        state.tempClipboard = files.map(file => ({
-            displayPath: file.displayPath,
-            basePath: file.basePath,
-            content: file.content,
-            format: file.format
-            // Note: savedAt timestamp is lost in legacy format
-        }));
-    }
-
-    clearTempFiles(): void {
-        const { state } = require('../../../models/models');
-        state.tempClipboard = [];
-    }
+    // ==================== TEMP STORAGE OPERATIONS - REMOVED ====================
+    // All temp storage methods have been removed as the functionality is no longer needed:
+    // - getTempFiles()
+    // - setTempFiles() 
+    // - clearTempFiles()
 }

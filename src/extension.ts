@@ -122,7 +122,7 @@ export function deactivate() {
         // Clear state arrays
         state.copiedFiles.length = 0;
         state.clipboardFiles.length = 0;
-        state.tempClipboard.length = 0;
+        // tempClipboard removed - no longer needed
 
         // Clear clipboard monitoring interval
         if (clipboardMonitoringInterval) {

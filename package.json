@@ -108,16 +108,6 @@
         "category": "Copy Path with Code"
       },
       {
-        "command": "copy-path-with-code.saveClipboardToTemp",
-        "title": "Save Clipboard to Temp",
-        "category": "Copy Path with Code"
-      },
-      {
-        "command": "copy-path-with-code.restoreClipboardFromTemp",
-        "title": "Restore Clipboard from Temp",
-        "category": "Copy Path with Code"
-      },
-      {
         "command": "copy-path-with-code.expandAllDirectories",
         "title": "Expand All",
         "icon": "$(expand-all)"
@@ -268,16 +258,6 @@
         "command": "copy-path-with-code.clearClipboardQueue",
         "key": "ctrl+alt+shift+z",
         "mac": "cmd+alt+shift+z"
-      },
-      {
-        "command": "copy-path-with-code.saveClipboardToTemp",
-        "key": "ctrl+alt+q",
-        "mac": "cmd+alt+q"
-      },
-      {
-        "command": "copy-path-with-code.restoreClipboardFromTemp",
-        "key": "ctrl+alt+e",
-        "mac": "cmd+alt+e"
       },
       {
         "command": "copy-path-with-code.showSearchInput",

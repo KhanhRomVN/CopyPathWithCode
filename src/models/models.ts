@@ -29,7 +29,7 @@ export const state = {
     statusBarItem: undefined as vscode.StatusBarItem | undefined,
     clipboardFiles: [] as ClipboardFile[],
     isClipboardDetectionEnabled: true,
-    tempClipboard: [] as CopiedFile[],
+    // tempClipboard removed - no longer needed
 };
 
 export interface ClipboardFile {

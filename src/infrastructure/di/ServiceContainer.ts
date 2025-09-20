@@ -1,5 +1,6 @@
 /**
  * Updated ServiceContainer with FileSystem Storage for cross-window synchronization
+ * TEMP CLIPBOARD FUNCTIONALITY REMOVED
  */
 
 import * as vscode from 'vscode';
@@ -40,8 +41,6 @@ import { FolderApplicationService, INotificationService, IUIRefreshService } fro
 // Application Services - Clipboard
 import { CopyFileContentUseCase } from '../../application/clipboard/usecases/CopyFileContentUseCase';
 import { ClearClipboardUseCase } from '../../application/clipboard/usecases/ClearClipboardUseCase';
-import { SaveToTempUseCase } from '../../application/clipboard/usecases/SaveToTempUseCase';
-import { RestoreFromTempUseCase } from '../../application/clipboard/usecases/RestoreFromTempUseCase';
 import { ClipboardApplicationService, IClipboardUIRefreshService } from '../../application/clipboard/service/ClipboardApplicationService';
 
 // Types for FolderProvider dependency
@@ -172,7 +171,7 @@ export class ServiceContainer {
         const openFolderFilesUseCase = new OpenFolderFilesUseCase(folderService, fileService);
         this.register('OpenFolderFilesUseCase', openFolderFilesUseCase);
 
-        // Clipboard Use Cases
+        // Clipboard Use Cases (Temp removed)
         const clipboardService = this.resolve<ClipboardService>('ClipboardService');
         const clipboardNotificationService = this.resolve<IClipboardNotificationService>('IClipboardNotificationService');
 
@@ -182,11 +181,7 @@ export class ServiceContainer {
         const clearClipboardUseCase = new ClearClipboardUseCase(clipboardService, clipboardNotificationService);
         this.register('ClearClipboardUseCase', clearClipboardUseCase);
 
-        const saveToTempUseCase = new SaveToTempUseCase(clipboardService, clipboardNotificationService);
-        this.register('SaveToTempUseCase', saveToTempUseCase);
-
-        const restoreFromTempUseCase = new RestoreFromTempUseCase(clipboardService, clipboardNotificationService);
-        this.register('RestoreFromTempUseCase', restoreFromTempUseCase);
+        // Temp use cases removed - no longer needed
     }
 
     private registerClipboardServices(): void {
@@ -236,12 +231,12 @@ export class ServiceContainer {
             };
             this.register<IClipboardUIRefreshService>('IClipboardUIRefreshService', clipboardUIRefreshService);
 
-            // Clipboard Application Service
+            // Clipboard Application Service (Temp functionality removed)
             const clipboardApplicationService = new ClipboardApplicationService(
                 this.resolve('CopyFileContentUseCase'),
                 this.resolve('ClearClipboardUseCase'),
-                this.resolve('SaveToTempUseCase'),
-                this.resolve('RestoreFromTempUseCase'),
+                // Removed: saveToTempUseCase
+                // Removed: restoreFromTempUseCase
                 clipboardUIRefreshService
             );
             this.register('ClipboardApplicationService', clipboardApplicationService);
@@ -254,23 +249,16 @@ export class ServiceContainer {
     private updateClipboardStatusBar(): void {
         const clipboardService = this.resolve<ClipboardService>('ClipboardService');
         const copiedFiles = clipboardService.getCopiedFiles();
-        const tempFiles = clipboardService.getTempFiles();
+        // Temp files removed - no longer needed
 
         // Import state dynamically to avoid circular dependency
         const { state } = require('../../models/models');
 
         if (state.statusBarItem) {
             const count = copiedFiles.length;
-            const tempText = tempFiles.length > 0 ? ` | Temp: ${tempFiles.length}` : '';
 
-            if (count > 0 && tempFiles.length > 0) {
-                state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
-                state.statusBarItem.show();
-            } else if (count > 0) {
+            if (count > 0) {
                 state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
-                state.statusBarItem.show();
-            } else if (tempFiles.length > 0) {
-                state.statusBarItem.text = `$(archive) Temp: ${tempFiles.length} file${tempFiles.length > 1 ? 's' : ''}`;
                 state.statusBarItem.show();
             } else {
                 state.statusBarItem.hide();

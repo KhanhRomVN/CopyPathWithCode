@@ -1,4 +1,4 @@
-// src/commands/clipboard/coreCommands.ts - FIXED VERSION
+// src/commands/clipboard/coreCommands.ts - UPDATED VERSION - TEMP REMOVED
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { state, CopiedFile, ErrorInfo } from '../../models/models';
@@ -230,14 +230,8 @@ async function clearClipboard() {
         vscode.window.showInformationMessage('Clipboard cleared');
 
         if (state.statusBarItem) {
-            if (state.tempClipboard.length > 0) {
-                const tempText = `$(archive) Temp: ${state.tempClipboard.length} file${state.tempClipboard.length > 1 ? 's' : ''}`;
-                state.statusBarItem.text = tempText;
-                state.statusBarItem.show();
-            } else {
-                state.statusBarItem.hide();
-            }
-            Logger.debug('Status bar updated after clear');
+            state.statusBarItem.hide();
+            Logger.debug('Status bar hidden after clear');
         }
 
         // Refresh the clipboard view
@@ -262,8 +256,11 @@ async function updateClipboardWithSignature() {
 function updateStatusBar() {
     if (state.statusBarItem) {
         const count = state.copiedFiles.length;
-        const tempText = state.tempClipboard.length > 0 ? ` | Temp: ${state.tempClipboard.length}` : '';
-        state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
-        state.statusBarItem.show();
+        if (count > 0) {
+            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
+            state.statusBarItem.show();
+        } else {
+            state.statusBarItem.hide();
+        }
     }
 }

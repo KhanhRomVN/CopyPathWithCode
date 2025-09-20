@@ -2,6 +2,7 @@
  * FILE: src/commands/contextMenuCommands.ts
  * 
  * CONTEXT MENU COMMANDS - LỆNH MENU NGỮ CẢNH
+ * TEMP CLIPBOARD FUNCTIONALITY REMOVED
  * 
  * Các lệnh xuất hiện trong menu ngữ cảnh khi click chuột phải trên file/folder.
  * 
@@ -559,9 +560,12 @@ async function updateClipboardWithSignature() {
 function updateStatusBar() {
     if (state.statusBarItem) {
         const count = state.copiedFiles.length;
-        const tempText = state.tempClipboard.length > 0 ? ` | Temp: ${state.tempClipboard.length}` : '';
-        state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''}${tempText}`;
-        state.statusBarItem.show();
+        if (count > 0) {
+            state.statusBarItem.text = `$(clippy) ${count} file${count > 1 ? 's' : ''} copied`;
+            state.statusBarItem.show();
+        } else {
+            state.statusBarItem.hide();
+        }
     }
 }
 

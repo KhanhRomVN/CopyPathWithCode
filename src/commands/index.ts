@@ -1,6 +1,7 @@
 /**
  * Updated src/commands/index.ts
  * Refactored clipboard commands to use clean architecture services
+ * TEMP CLIPBOARD FUNCTIONALITY REMOVED
  */
 
 import * as vscode from 'vscode';
@@ -13,7 +14,6 @@ import { ClipboardDetector } from '../utils/clipboard/clipboardDetector';
 
 // Import command modules
 import { registerCoreCommands } from './clipboard/coreCommands';
-import { registerTempClipboardCommands } from './clipboard/tempClipboardCommands';
 import { registerFolderCommands } from './folder/FolderCommands';
 import { registerFileManagementCommands } from './folder/FileManagementCommands';
 import { registerViewCommands } from './folder/ViewCommands';
@@ -39,10 +39,6 @@ export function registerAllCommands(
         // Register core clipboard commands first (these are the main keyboard shortcuts)
         registerCoreCommands(context);
         Logger.debug('Core clipboard commands registered');
-
-        // Register temp clipboard commands
-        registerTempClipboardCommands(context);
-        Logger.debug('Temp clipboard commands registered');
 
         // Register context menu commands
         registerContextMenuCommands(context);

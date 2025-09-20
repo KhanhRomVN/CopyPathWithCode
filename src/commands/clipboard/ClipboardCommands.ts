@@ -24,16 +24,4 @@ export function registerClipboardCommands(context: vscode.ExtensionContext): voi
         'copy-path-with-code.clearClipboard',
         () => clipboardApplicationService.clearClipboard()
     );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.saveClipboardToTemp',
-        () => clipboardApplicationService.saveClipboardToTemp()
-    );
-
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.restoreClipboardFromTemp',
-        () => clipboardApplicationService.restoreClipboardFromTemp()
-    );
 }
