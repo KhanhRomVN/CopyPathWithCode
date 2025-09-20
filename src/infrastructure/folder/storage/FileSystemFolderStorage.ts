@@ -1,11 +1,3 @@
-/**
- * FILE: src/infrastructure/folder/storage/FileSystemFolderStorage.ts
- * 
- * FILE SYSTEM FOLDER STORAGE - Shared between VS Code instances
- * 
- * Uses file system to store folder data, allowing sharing between multiple VS Code windows
- */
-
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,6 +9,9 @@ export class FileSystemFolderStorage implements IFolderRepository {
     private folders: Folder[] = [];
     private readonly storageFilePath: string;
     private fileWatcher: vscode.FileSystemWatcher | undefined;
+    private lastSaveTimestamp: number = 0;
+    private refreshDebounceTimer: NodeJS.Timeout | undefined;
+    private isInternalUpdate: boolean = false; // Flag to prevent circular updates
 
     constructor(private readonly context: vscode.ExtensionContext) {
         // Use a global storage path that's shared between VS Code instances
@@ -34,27 +29,27 @@ export class FileSystemFolderStorage implements IFolderRepository {
     }
 
     findAll(): Folder[] {
-        this.loadFromFileSystem(); // Always load fresh data
+        this.loadFromFileSystemIfNeeded();
         return [...this.folders];
     }
 
     findById(id: string): Folder | undefined {
-        this.loadFromFileSystem();
+        this.loadFromFileSystemIfNeeded();
         return this.folders.find(f => f.id === id);
     }
 
     findByName(name: string): Folder | undefined {
-        this.loadFromFileSystem();
+        this.loadFromFileSystemIfNeeded();
         return this.folders.find(f => f.name === name);
     }
 
     findByWorkspace(workspacePath: string): Folder[] {
-        this.loadFromFileSystem();
+        this.loadFromFileSystemIfNeeded();
         return this.folders.filter(f => f.workspaceFolder === workspacePath);
     }
 
     save(folder: Folder): void {
-        this.loadFromFileSystem(); // Load latest data first
+        this.loadFromFileSystemIfNeeded(); // Load latest data first
 
         const index = this.folders.findIndex(f => f.id === folder.id);
 
@@ -68,7 +63,7 @@ export class FileSystemFolderStorage implements IFolderRepository {
     }
 
     delete(id: string): boolean {
-        this.loadFromFileSystem(); // Load latest data first
+        this.loadFromFileSystemIfNeeded(); // Load latest data first
 
         const index = this.folders.findIndex(f => f.id === id);
 
@@ -82,7 +77,7 @@ export class FileSystemFolderStorage implements IFolderRepository {
     }
 
     exists(id: string): boolean {
-        this.loadFromFileSystem();
+        this.loadFromFileSystemIfNeeded();
         return this.folders.some(f => f.id === id);
     }
 
@@ -97,7 +92,7 @@ export class FileSystemFolderStorage implements IFolderRepository {
         this.saveToFileSystem();
     }
 
-    // File system operations
+    // File system operations - ENHANCED
     private loadFromFileSystem(): void {
         try {
             if (fs.existsSync(this.storageFilePath)) {
@@ -106,6 +101,7 @@ export class FileSystemFolderStorage implements IFolderRepository {
 
                 if (Array.isArray(storedData)) {
                     this.folders = storedData.map(data => Folder.fromData(data));
+                    Logger.debug(`Loaded ${this.folders.length} folders from file system`);
                 } else {
                     this.folders = [];
                 }
@@ -121,42 +117,101 @@ export class FileSystemFolderStorage implements IFolderRepository {
         }
     }
 
-    private saveToFileSystem(): void {
+    // NEW: Only load if file has been modified by another instance
+    private loadFromFileSystemIfNeeded(): void {
         try {
-            const data = this.folders.map(f => f.toData());
-            fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), 'utf8');
-            Logger.debug(`Saved ${this.folders.length} folders to file system`);
+            if (fs.existsSync(this.storageFilePath)) {
+                const stats = fs.statSync(this.storageFilePath);
+                const fileTimestamp = stats.mtime.getTime();
+
+                // Only reload if file was modified after our last save
+                if (fileTimestamp > this.lastSaveTimestamp) {
+                    Logger.debug('File modified by another instance, reloading...');
+                    this.loadFromFileSystem();
+                }
+            }
         } catch (error) {
-            Logger.error('Failed to save folders to file system', error);
+            Logger.warn('Failed to check file timestamp, forcing reload', error);
+            this.loadFromFileSystem();
         }
     }
 
+    private saveToFileSystem(): void {
+        try {
+            this.isInternalUpdate = true; // Mark as internal update
+            const data = this.folders.map(f => f.toData());
+            fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), 'utf8');
+            this.lastSaveTimestamp = Date.now();
+            Logger.debug(`Saved ${this.folders.length} folders to file system`);
+        } catch (error) {
+            Logger.error('Failed to save folders to file system', error);
+        } finally {
+            // Reset flag after a short delay to allow file watcher to ignore this change
+            setTimeout(() => {
+                this.isInternalUpdate = false;
+            }, 100);
+        }
+    }
+
+    // ENHANCED: Better file watching with debouncing
     private setupFileWatcher(): void {
         try {
             // Watch for changes to the storage file from other VS Code instances
             this.fileWatcher = vscode.workspace.createFileSystemWatcher(this.storageFilePath);
 
             this.fileWatcher.onDidChange(() => {
+                // Ignore changes made by this instance
+                if (this.isInternalUpdate) {
+                    Logger.debug('Ignoring self-triggered file change');
+                    return;
+                }
+
                 Logger.debug('Folders file changed by another VS Code instance');
-                this.loadFromFileSystem();
-                // Notify the folder provider to refresh
-                vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
+                this.debouncedRefresh();
             });
 
             this.fileWatcher.onDidCreate(() => {
+                if (this.isInternalUpdate) return;
+
                 Logger.debug('Folders file created by another VS Code instance');
-                this.loadFromFileSystem();
-                vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
+                this.debouncedRefresh();
             });
 
             this.fileWatcher.onDidDelete(() => {
+                if (this.isInternalUpdate) return;
+
                 Logger.debug('Folders file deleted by another VS Code instance');
                 this.folders = [];
-                vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
+                this.debouncedRefresh();
             });
+
+            Logger.debug('File watcher setup completed');
         } catch (error) {
             Logger.error('Failed to setup file watcher', error);
         }
+    }
+
+    // NEW: Debounced refresh to prevent excessive updates
+    private debouncedRefresh(): void {
+        // Clear existing timer
+        if (this.refreshDebounceTimer) {
+            clearTimeout(this.refreshDebounceTimer);
+        }
+
+        // Set new timer
+        this.refreshDebounceTimer = setTimeout(() => {
+            try {
+                // Load fresh data from file
+                this.loadFromFileSystem();
+
+                // Refresh the folder view
+                vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
+
+                Logger.debug('Debounced refresh completed');
+            } catch (error) {
+                Logger.error('Failed during debounced refresh', error);
+            }
+        }, 300); // 300ms debounce
     }
 
     private migrateFromGlobalState(): void {
@@ -178,9 +233,17 @@ export class FileSystemFolderStorage implements IFolderRepository {
     }
 
     dispose(): void {
+        // Clear debounce timer
+        if (this.refreshDebounceTimer) {
+            clearTimeout(this.refreshDebounceTimer);
+        }
+
+        // Dispose file watcher
         if (this.fileWatcher) {
             this.fileWatcher.dispose();
         }
+
+        Logger.debug('FileSystemFolderStorage disposed');
     }
 }
 

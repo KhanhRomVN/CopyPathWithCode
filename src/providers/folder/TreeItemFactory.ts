@@ -58,16 +58,14 @@ export class TreeItemFactory {
                 : FOLDER_CONSTANTS.ICONS.FOLDER_LIBRARY
         );
 
-        // Create tooltip
-        const workspaceInfo = folder.workspaceFolder
-            ? `Workspace: ${path.basename(folder.workspaceFolder)}`
-            : 'Workspace: Unknown';
+        // Create tooltip with enhanced workspace information
+        const workspaceInfo = this.getWorkspaceDisplayInfo(folder, isCurrentWorkspace);
 
         treeItem.tooltip = new vscode.MarkdownString(
             `**${folder.name}**\n\n` +
             `Files: ${folder.fileCount}\n` +
             `${workspaceInfo}\n` +
-            `${isCurrentWorkspace ? 'Current workspace' : 'Different workspace'}`
+            `${isCurrentWorkspace ? '✓ Current workspace' : '⚠ Different workspace'}`
         );
 
         // Add description for different workspace
@@ -157,7 +155,7 @@ export class TreeItemFactory {
         }
 
         for (const node of sortedNodes) {
-            const item = this.createFileNodeTreeItem(node, fileManagementState, folder.id);
+            const item = this.createFileNodeTreeItem(node, fileManagementState, folder.id, folder);
             (item as any).folderId = folder.id;
             items.push(item);
         }
@@ -165,11 +163,12 @@ export class TreeItemFactory {
         return items;
     }
 
-    // SOLUTION: Create stable TreeItem with predictable ID
+    // ENHANCED: Create stable TreeItem with improved path handling
     createFileNodeTreeItem(
         node: FileNode,
         fileManagementState?: FileManagementState | null,
-        folderId?: string
+        folderId?: string,
+        folder?: Folder
     ): vscode.TreeItem {
         const item = new vscode.TreeItem(
             node.name,
@@ -186,7 +185,7 @@ export class TreeItemFactory {
         (item as any).treeNode = node;
 
         if (node.isFile) {
-            this.configureFileTreeItem(item, node, fileManagementState);
+            this.configureFileTreeItem(item, node, fileManagementState, folder);
         } else {
             this.configureDirectoryTreeItem(item, node, fileManagementState);
         }
@@ -194,7 +193,13 @@ export class TreeItemFactory {
         return item;
     }
 
-    private configureFileTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
+    // ENHANCED: Better file configuration with improved path display
+    private configureFileTreeItem(
+        item: vscode.TreeItem,
+        node: FileNode,
+        fileManagementState?: FileManagementState | null,
+        folder?: Folder
+    ): void {
         const isInFileManagement = fileManagementState?.mode !== 'normal' && fileManagementState?.mode;
 
         if (isInFileManagement && fileManagementState) {
@@ -239,8 +244,9 @@ export class TreeItemFactory {
                 arguments: [node.path]
             };
 
-            // Enhanced tooltip with mode-specific information
-            let tooltipContent = `**${node.name}**\n\nPath: ${node.path}\n\n`;
+            // Enhanced tooltip with mode-specific information and RELATIVE PATH
+            const relativePath = this.getRelativePathForDisplay(node, folder);
+            let tooltipContent = `**${node.name}**\n\nPath: ${relativePath}\n\n`;
 
             if (mode === 'add') {
                 if (isSelected) {
@@ -272,9 +278,10 @@ export class TreeItemFactory {
             }
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE;
 
-            // Standard tooltip
+            // ENHANCED: Standard tooltip with relative path
+            const relativePath = this.getRelativePathForDisplay(node, folder);
             item.tooltip = new vscode.MarkdownString(
-                `**${node.name}**\n\nPath: ${node.path}`
+                `**${node.name}**\n\nPath: ${relativePath}`
             );
         }
     }
@@ -300,6 +307,65 @@ export class TreeItemFactory {
         );
     }
 
+    // NEW: Get relative path for display, works cross-workspace
+    private getRelativePathForDisplay(node: FileNode, folder?: Folder): string {
+        // If we have the node's URI, try to get relative path from current workspace
+        if (node.uri) {
+            try {
+                const uri = vscode.Uri.parse(node.uri);
+
+                // Always try to get relative path from current workspace first
+                const currentWorkspaceFolders = vscode.workspace.workspaceFolders;
+                if (currentWorkspaceFolders && currentWorkspaceFolders.length > 0) {
+                    const relativePath = vscode.workspace.asRelativePath(uri, false);
+
+                    // If the relative path doesn't start with '..' or drive letter, it's in current workspace
+                    if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+                        return relativePath.replace(/\\/g, '/');
+                    }
+                }
+
+                // If not in current workspace, try to get relative path from folder's workspace
+                if (folder?.workspaceFolder) {
+                    try {
+                        const folderWorkspaceUri = vscode.Uri.file(folder.workspaceFolder);
+                        const relativePath = path.relative(folderWorkspaceUri.fsPath, uri.fsPath);
+
+                        if (!relativePath.startsWith('..')) {
+                            return relativePath.replace(/\\/g, '/');
+                        }
+                    } catch {
+                        // Fall through to other methods
+                    }
+                }
+
+                // If all else fails, show filename only for cross-workspace files
+                return path.basename(uri.fsPath);
+
+            } catch (error) {
+                Logger.warn(`Failed to get relative path for ${node.uri}`, error);
+            }
+        }
+
+        // Fallback: use the node's path (which should already be relative)
+        return node.path;
+    }
+
+    // ENHANCED: Better workspace information display
+    private getWorkspaceDisplayInfo(folder: Folder, isCurrentWorkspace: boolean): string {
+        if (!folder.workspaceFolder) {
+            return 'Workspace: None (Legacy folder)';
+        }
+
+        const workspaceName = path.basename(folder.workspaceFolder);
+
+        if (isCurrentWorkspace) {
+            return `Workspace: ${workspaceName} (Current)`;
+        } else {
+            return `Workspace: ${workspaceName} (Different)`;
+        }
+    }
+
     private isFolderInCurrentWorkspace(folder: Folder): boolean {
         const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
 
@@ -308,7 +374,7 @@ export class TreeItemFactory {
         }
 
         if (!folder.workspaceFolder) {
-            return true;
+            return true; // Legacy folders are considered part of any workspace
         }
 
         return folder.workspaceFolder === currentWorkspace;
@@ -341,7 +407,7 @@ export class TreeItemFactory {
         return FileNode.sortNodes(filtered);
     }
 
-    // SOLUTION: Helper method to create consistent hash-based IDs
+    // Helper method to create consistent hash-based IDs
     private createHashFromString(input: string): string {
         return crypto.createHash('md5').update(input).digest('hex').substring(0, 8);
     }

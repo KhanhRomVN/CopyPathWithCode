@@ -47,6 +47,7 @@ import { ClipboardApplicationService, IClipboardUIRefreshService } from '../../a
 // Types for FolderProvider dependency
 import { Folder } from '../../domain/folder/entities/Folder';
 import { FileNode } from '../../domain/folder/entities/FileNode';
+import { Logger } from '../../utils/common/logger';
 
 export interface IFolderTreeService {
     getAllFolders(): Folder[];
@@ -85,8 +86,8 @@ export class ServiceContainer {
     }
 
     private registerInfrastructureServices(context: vscode.ExtensionContext): void {
-        // UPDATED: Use FileSystem storage instead of GlobalState storage
-        const folderStorage = new FileSystemFolderStorage(context);
+        // UPDATED: Use enhanced FileSystem storage with improved synchronization
+        const folderStorage = new FileSystemFolderStorage(context); // This now uses the enhanced version
         this.register<IFolderRepository>('IFolderRepository', folderStorage);
 
         // File System
@@ -333,7 +334,6 @@ export class ServiceContainer {
         return service;
     }
 
-    // UPDATED: Added proper disposal of FileSystemFolderStorage
     dispose(): void {
         // Dispose folder storage if it has a dispose method
         const folderStorage = this.services.get('IFolderRepository');
@@ -343,5 +343,7 @@ export class ServiceContainer {
 
         this.services.clear();
         this.isInitialized = false;
+
+        Logger.debug('ServiceContainer disposed with enhanced cleanup');
     }
 }
