@@ -7,6 +7,7 @@ import { IWorkspaceService } from '../../infrastructure/folder/workspace/Workspa
 import { INotificationService } from '../../application/folder/service/FolderApplicationService';
 import { IEditorService } from '../../infrastructure/folder/ui/EditorService';
 import { CommandRegistry } from '../../utils/common/CommandRegistry';
+import { FolderService } from '../../domain/folder/services/FolderService';
 
 export function registerFileManagementCommands(context: vscode.ExtensionContext): void {
     const container = ServiceContainer.getInstance();
@@ -162,7 +163,28 @@ async function handleAddFileToFolder(
 
     // Enter file management mode
     treeDataProvider.enterFileManagementMode(folderId, 'add');
-    notificationService.showInfo('Adding files to folder. Click files to select/deselect them, then click "Confirm Add Selected".');
+
+    // ENHANCED: Different message for folders with existing files
+    const container = ServiceContainer.getInstance();
+    const folderService = container.resolve<FolderService>('FolderService');
+
+    try {
+        const folder = folderService.getFolderById(folderId);
+
+        if (folder.fileCount > 0) {
+            notificationService.showInfo(
+                `Managing files in "${folder.name}". ` +
+                `${folder.fileCount} existing files are pre-selected. ` +
+                `Uncheck files to remove them, check new files to add them, then click "Confirm".`
+            );
+        } else {
+            notificationService.showInfo(
+                'Adding files to folder. Click files to select them, then click "Confirm Add Selected".'
+            );
+        }
+    } catch (error) {
+        notificationService.showInfo('Adding files to folder. Click files to select/deselect them, then click "Confirm Add Selected".');
+    }
 }
 
 async function handleRemoveFileFromFolder(
@@ -185,7 +207,11 @@ async function handleRemoveFileFromFolder(
 
     // Enter file management mode
     treeDataProvider.enterFileManagementMode(folderId, 'remove');
-    notificationService.showInfo('Removing files from folder. Click files to select/deselect them, then click "Confirm Remove Selected".');
+
+    // UPDATED: Clear message for remove mode
+    notificationService.showInfo(
+        'Removing files from folder. Select the files you want to REMOVE (they start unselected), then click "Confirm Remove Selected".'
+    );
 }
 
 async function handleOpenFolderFiles(
@@ -291,9 +317,24 @@ async function handleConfirmFileManagement(
         return;
     }
 
+    // UPDATED: Different validation for different modes
     if (selectedFiles.length === 0) {
-        notificationService.showWarning('No files selected');
-        return;
+        if (managementState.mode === 'add') {
+            // For add mode: allow empty selection to remove all files
+            const choice = await notificationService.showConfirmDialog(
+                'No files selected. This will remove all files from the folder. Continue?',
+                'Remove All',
+                'Cancel'
+            );
+
+            if (choice !== 'Remove All') {
+                return;
+            }
+        } else {
+            // For remove mode: no files selected means no files to remove
+            notificationService.showWarning('No files selected to remove from folder');
+            return;
+        }
     }
 
     // Convert relative paths to URIs
@@ -304,7 +345,6 @@ async function handleConfirmFileManagement(
     }
 
     const selectedUris = selectedFiles.map(relativePath => {
-        // Convert relative path to absolute path, then to URI
         const absolutePath = path.resolve(currentWorkspace, relativePath);
         return vscode.Uri.file(absolutePath).toString();
     });
@@ -314,7 +354,8 @@ async function handleConfirmFileManagement(
             await commandHandler.handleAddFilesToFolder({
                 folderId: managementState.folderId,
                 fileUris: selectedUris,
-                validateFiles: true
+                validateFiles: true,
+                mode: 'sync'
             });
         } else if (managementState.mode === 'remove') {
             await commandHandler.handleRemoveFilesFromFolder({

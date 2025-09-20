@@ -193,7 +193,6 @@ export class TreeItemFactory {
         return item;
     }
 
-    // ENHANCED: Better file configuration with improved path display
     private configureFileTreeItem(
         item: vscode.TreeItem,
         node: FileNode,
@@ -206,7 +205,6 @@ export class TreeItemFactory {
             const isSelected = fileManagementState.selectedFiles.has(node.path);
             const mode = fileManagementState.mode;
 
-            // ENHANCED: Dynamic icon and label based on selection state and mode
             if (isSelected) {
                 // Show selected state with check icon
                 item.iconPath = new vscode.ThemeIcon(
@@ -214,29 +212,38 @@ export class TreeItemFactory {
                     new vscode.ThemeColor('testing.iconPassed') // Green check color
                 );
 
-                // Different descriptions based on mode
                 if (mode === 'add') {
-                    item.description = '✓ In folder (or will be added)';
-                } else {
-                    item.description = '✓ Will be removed';
+                    const isExistingFile = folder && folder.hasFile(node.uri || '');
+                    if (isExistingFile) {
+                        item.description = '✓ Will remain in folder';
+                    } else {
+                        item.description = '✓ Will be added';
+                    }
+                } else { // remove mode
+                    item.description = '✓ Will be REMOVED from folder';
                 }
             } else {
-                // Show unselected state with normal file icon
+                // Show unselected state
                 if (node.uri) {
                     item.resourceUri = vscode.Uri.parse(node.uri);
-                    // Let VS Code determine the file icon based on extension
                 } else {
                     item.iconPath = new vscode.ThemeIcon('file');
                 }
 
                 if (mode === 'add') {
-                    item.description = 'Click to add to folder';
-                } else {
-                    item.description = 'Click to keep in folder';
+                    const isExistingFile = folder && folder.hasFile(node.uri || '');
+                    if (isExistingFile) {
+                        item.description = 'Will be removed (uncheck to remove)';
+                    } else {
+                        item.description = 'Click to add to folder';
+                    }
+                } else { // remove mode  
+                    // FIXED: In remove mode, unselected files will STAY in folder
+                    item.description = 'Will stay in folder (click to remove)';
                 }
             }
 
-            // Set context value and command for file management
+            // Set context value and command
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE_MANAGEMENT_FILE;
             item.command = {
                 command: 'copy-path-with-code.toggleFileSelection',
@@ -244,27 +251,37 @@ export class TreeItemFactory {
                 arguments: [node.path]
             };
 
-            // Enhanced tooltip with mode-specific information and RELATIVE PATH
+            // UPDATED: Clearer tooltips for remove mode
             const relativePath = this.getRelativePathForDisplay(node, folder);
             let tooltipContent = `**${node.name}**\n\nPath: ${relativePath}\n\n`;
 
             if (mode === 'add') {
+                const isExistingFile = folder && folder.hasFile(node.uri || '');
+
                 if (isSelected) {
-                    tooltipContent += `**Status:** Already in folder or will be added ✓\n\n*Click to exclude from folder*`;
+                    if (isExistingFile) {
+                        tooltipContent += `**Status:** Will remain in folder ✓\n\n*This file is currently in the folder and will stay*\n\n*Click to remove from folder*`;
+                    } else {
+                        tooltipContent += `**Status:** Will be added to folder ✓\n\n*This file will be added*\n\n*Click to exclude*`;
+                    }
                 } else {
-                    tooltipContent += `**Status:** Not in folder\n\n*Click to add to folder*`;
+                    if (isExistingFile) {
+                        tooltipContent += `**Status:** Will be REMOVED from folder ⚠️\n\n*This file is in the folder but not selected*\n\n*Click to keep in folder*`;
+                    } else {
+                        tooltipContent += `**Status:** Not selected\n\n*Click to add to folder*`;
+                    }
                 }
-            } else { // remove mode
+            } else { // REMOVE mode - FIXED logic
                 if (isSelected) {
-                    tooltipContent += `**Status:** Will be removed ✓\n\n*Click to keep in folder*`;
+                    tooltipContent += `**Status:** SELECTED FOR REMOVAL ⚠️\n\n*This file will be removed from the folder*\n\n*Click to cancel removal*`;
                 } else {
-                    tooltipContent += `**Status:** Will stay in folder\n\n*Click to remove from folder*`;
+                    tooltipContent += `**Status:** Will stay in folder ✓\n\n*This file will remain in the folder*\n\n*Click to mark for removal*`;
                 }
             }
 
             item.tooltip = new vscode.MarkdownString(tooltipContent);
         } else {
-            // Normal mode - not in file management
+            // Normal mode configuration (unchanged)
             item.label = node.name;
 
             if (node.uri) {
@@ -278,7 +295,6 @@ export class TreeItemFactory {
             }
             item.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FILE;
 
-            // ENHANCED: Standard tooltip with relative path
             const relativePath = this.getRelativePathForDisplay(node, folder);
             item.tooltip = new vscode.MarkdownString(
                 `**${node.name}**\n\nPath: ${relativePath}`

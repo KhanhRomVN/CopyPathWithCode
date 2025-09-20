@@ -43,7 +43,6 @@ export class FileManagementStateManager {
             selectedFolders: new Set()
         };
 
-        // FIXED: Pre-select existing files for BOTH 'add' and 'remove' modes
         this.preselectExistingFiles(folderId);
     }
 
@@ -194,22 +193,34 @@ export class FileManagementStateManager {
             const headerItem = treeItemFactory.createFileManagementHeader(folder, this.fileManagementState.mode as 'add' | 'remove');
             items.push(headerItem);
 
-            // Action buttons with current selection count
+            // UPDATED: Action buttons with mode-specific labels and behavior
             const selectedCount = this.getSelectedFiles().length;
 
-            items.push(
-                treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
-                treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
-                treeItemFactory.createActionButton(
-                    this.fileManagementState.mode === 'add'
-                        ? `Confirm Add Selected (${selectedCount})`
-                        : `Confirm Remove Selected (${selectedCount})`,
-                    FOLDER_CONSTANTS.ICONS.CHECK,
-                    'confirmFileManagement',
-                    'copy-path-with-code.confirmFileManagement'
-                ),
-                treeItemFactory.createActionButton('Cancel', FOLDER_CONSTANTS.ICONS.CLOSE, 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
-            );
+            if (this.fileManagementState.mode === 'add') {
+                items.push(
+                    treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
+                    treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
+                    treeItemFactory.createActionButton(
+                        `Confirm Add/Remove (${selectedCount} selected)`,
+                        FOLDER_CONSTANTS.ICONS.CHECK,
+                        'confirmFileManagement',
+                        'copy-path-with-code.confirmFileManagement'
+                    ),
+                    treeItemFactory.createActionButton('Cancel', FOLDER_CONSTANTS.ICONS.CLOSE, 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
+                );
+            } else { // remove mode
+                items.push(
+                    treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
+                    treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
+                    treeItemFactory.createActionButton(
+                        `Remove Selected (${selectedCount} to remove)`,
+                        FOLDER_CONSTANTS.ICONS.TRASH,
+                        'confirmFileManagement',
+                        'copy-path-with-code.confirmFileManagement'
+                    ),
+                    treeItemFactory.createActionButton('Cancel', FOLDER_CONSTANTS.ICONS.CLOSE, 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
+                );
+            }
 
             return items;
         } catch (error) {
@@ -247,31 +258,35 @@ export class FileManagementStateManager {
         // No more timers to clean up
     }
 
-    // FIXED: Pre-select existing files for BOTH modes
     private preselectExistingFiles(folderId: string): void {
         try {
             const folder = this.folderTreeService.getFolderById(folderId);
             const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
 
             if (currentWorkspace) {
-                folder.files.forEach(fileUri => {
-                    try {
-                        const relativePath = this.getRelativePathFromUri(fileUri);
-                        this.fileManagementState.selectedFiles.add(relativePath);
-                    } catch (error) {
-                        Logger.warn(`Invalid URI in folder: ${fileUri}`, error);
-                    }
-                });
-
-                // ENHANCED: Show different messages based on mode
+                // FIXED: Only pre-select files for ADD mode, not REMOVE mode
                 if (this.fileManagementState.mode === 'add') {
-                    Logger.debug(`Pre-selected ${folder.files.length} existing files for add mode (will show as already selected)`);
-                } else {
-                    Logger.debug(`Pre-selected ${folder.files.length} existing files for removal`);
+                    // For ADD mode: pre-select existing files so they remain in folder
+                    folder.files.forEach(fileUri => {
+                        try {
+                            const relativePath = this.getRelativePathFromUri(fileUri);
+                            this.fileManagementState.selectedFiles.add(relativePath);
+                        } catch (error) {
+                            Logger.warn(`Invalid URI in folder: ${fileUri}`, error);
+                        }
+                    });
+
+                    Logger.debug(`ADD mode: Pre-selected ${folder.files.length} existing files (will remain in folder unless unchecked)`);
+                } else if (this.fileManagementState.mode === 'remove') {
+                    // For REMOVE mode: start with NO files selected
+                    // User must explicitly select files they want to remove
+                    this.fileManagementState.selectedFiles.clear();
+
+                    Logger.debug(`REMOVE mode: Started with no files selected (user must select files to remove)`);
                 }
             }
         } catch (error) {
-            Logger.error(`Failed to pre-select files for folder ${folderId}`, error);
+            Logger.error(`Failed to handle file preselection for folder ${folderId}`, error);
         }
     }
 

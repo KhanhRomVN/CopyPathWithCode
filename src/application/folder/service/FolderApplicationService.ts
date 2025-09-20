@@ -94,17 +94,46 @@ export class FolderApplicationService {
 
             this.uiRefreshService.refreshFolderTree();
 
-            let message = `Added ${response.addedCount} file(s) to "${response.folder.name}"`;
+            // ENHANCED: Better message for sync mode
+            if (request.mode === 'sync') {
+                let message = `Updated folder "${response.folder.name}":`;
 
-            if (response.skippedCount > 0) {
-                message += ` (${response.skippedCount} already existed)`;
+                const changes = [];
+                if (response.addedCount > 0) {
+                    changes.push(`${response.addedCount} added`);
+                }
+                if (response.removedCount > 0) {
+                    changes.push(`${response.removedCount} removed`);
+                }
+                if (response.skippedCount > 0) {
+                    changes.push(`${response.skippedCount} kept`);
+                }
+
+                if (changes.length > 0) {
+                    message += ` ${changes.join(', ')}`;
+                } else {
+                    message = `No changes made to folder "${response.folder.name}"`;
+                }
+
+                if (response.invalidFiles.length > 0) {
+                    message += ` (${response.invalidFiles.length} invalid files skipped)`;
+                }
+
+                this.notificationService.showSuccess(message);
+            } else {
+                // Original add-only message
+                let message = `Added ${response.addedCount} file(s) to "${response.folder.name}"`;
+
+                if (response.skippedCount > 0) {
+                    message += ` (${response.skippedCount} already existed)`;
+                }
+
+                if (response.invalidFiles.length > 0) {
+                    message += ` (${response.invalidFiles.length} invalid files skipped)`;
+                }
+
+                this.notificationService.showSuccess(message);
             }
-
-            if (response.invalidFiles.length > 0) {
-                message += ` (${response.invalidFiles.length} invalid files skipped)`;
-            }
-
-            this.notificationService.showSuccess(message);
         } catch (error) {
             this.notificationService.showError(
                 `Failed to add files: ${error instanceof Error ? error.message : 'Unknown error'}`
