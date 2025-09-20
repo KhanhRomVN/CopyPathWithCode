@@ -1,11 +1,3 @@
-/**
- * FILE: src/providers/ClipboardProvider.ts
- * 
- * CLIPBOARD TREE DATA PROVIDER - UPDATED FOR CLEAN ARCHITECTURE
- * 
- * Provider now uses ClipboardService instead of direct state access.
- */
-
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ServiceContainer } from '../infrastructure/di/ServiceContainer';

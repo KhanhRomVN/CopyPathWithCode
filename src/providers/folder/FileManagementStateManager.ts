@@ -1,6 +1,3 @@
-// FILE: src/providers/folder/FileManagementStateManager.ts - SOLUTION VERSION
-// Uses TreeItem ID-based refresh to update icons without collapsing tree
-
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { FOLDER_CONSTANTS } from '../../shared/constants/FolderConstants';
@@ -46,10 +43,8 @@ export class FileManagementStateManager {
             selectedFolders: new Set()
         };
 
-        // Pre-select existing files in 'remove' mode
-        if (mode === 'remove') {
-            this.preselectExistingFiles(folderId);
-        }
+        // FIXED: Pre-select existing files for BOTH 'add' and 'remove' modes
+        this.preselectExistingFiles(folderId);
     }
 
     exitFileManagementMode(): void {
@@ -252,6 +247,7 @@ export class FileManagementStateManager {
         // No more timers to clean up
     }
 
+    // FIXED: Pre-select existing files for BOTH modes
     private preselectExistingFiles(folderId: string): void {
         try {
             const folder = this.folderTreeService.getFolderById(folderId);
@@ -267,7 +263,12 @@ export class FileManagementStateManager {
                     }
                 });
 
-                Logger.debug(`Pre-selected ${folder.files.length} existing files for removal`);
+                // ENHANCED: Show different messages based on mode
+                if (this.fileManagementState.mode === 'add') {
+                    Logger.debug(`Pre-selected ${folder.files.length} existing files for add mode (will show as already selected)`);
+                } else {
+                    Logger.debug(`Pre-selected ${folder.files.length} existing files for removal`);
+                }
             }
         } catch (error) {
             Logger.error(`Failed to pre-select files for folder ${folderId}`, error);

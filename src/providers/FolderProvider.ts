@@ -1,6 +1,3 @@
-// FILE: src/providers/FolderProvider.ts - NULL REFRESH SOLUTION
-// Uses null refresh to update TreeItem icons without collapsing tree structure
-
 import * as vscode from 'vscode';
 import { IFolderTreeService } from '../infrastructure/di/ServiceContainer';
 import { TreeItemFactory } from './folder/TreeItemFactory';

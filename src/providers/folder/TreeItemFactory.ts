@@ -1,6 +1,3 @@
-// FILE: src/providers/folder/TreeItemFactory.ts - STABLE ID VERSION
-// Creates stable TreeItem IDs to enable proper refresh without tree collapse
-
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { Folder } from '../../domain/folder/entities/Folder';
@@ -197,24 +194,27 @@ export class TreeItemFactory {
         return item;
     }
 
-    // SOLUTION: Enhanced file configuration with real-time icon updates
     private configureFileTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
         const isInFileManagement = fileManagementState?.mode !== 'normal' && fileManagementState?.mode;
 
         if (isInFileManagement && fileManagementState) {
             const isSelected = fileManagementState.selectedFiles.has(node.path);
+            const mode = fileManagementState.mode;
 
-            // ENHANCED: Dynamic icon and label based on selection state
+            // ENHANCED: Dynamic icon and label based on selection state and mode
             if (isSelected) {
                 // Show selected state with check icon
                 item.iconPath = new vscode.ThemeIcon(
                     'check',
                     new vscode.ThemeColor('testing.iconPassed') // Green check color
                 );
-                item.description = '✓ Selected';
 
-                // Optional: Modify label to show selection
-                // item.label = `${node.name} ✓`;
+                // Different descriptions based on mode
+                if (mode === 'add') {
+                    item.description = '✓ In folder (or will be added)';
+                } else {
+                    item.description = '✓ Will be removed';
+                }
             } else {
                 // Show unselected state with normal file icon
                 if (node.uri) {
@@ -223,7 +223,12 @@ export class TreeItemFactory {
                 } else {
                     item.iconPath = new vscode.ThemeIcon('file');
                 }
-                item.description = 'Click to select';
+
+                if (mode === 'add') {
+                    item.description = 'Click to add to folder';
+                } else {
+                    item.description = 'Click to keep in folder';
+                }
             }
 
             // Set context value and command for file management
@@ -234,10 +239,24 @@ export class TreeItemFactory {
                 arguments: [node.path]
             };
 
-            // Enhanced tooltip with selection info
-            item.tooltip = new vscode.MarkdownString(
-                `**${node.name}**\n\nPath: ${node.path}\n\n**Selection:** ${isSelected ? 'Selected ✓' : 'Not selected'}\n\n*Click to ${isSelected ? 'deselect' : 'select'}*`
-            );
+            // Enhanced tooltip with mode-specific information
+            let tooltipContent = `**${node.name}**\n\nPath: ${node.path}\n\n`;
+
+            if (mode === 'add') {
+                if (isSelected) {
+                    tooltipContent += `**Status:** Already in folder or will be added ✓\n\n*Click to exclude from folder*`;
+                } else {
+                    tooltipContent += `**Status:** Not in folder\n\n*Click to add to folder*`;
+                }
+            } else { // remove mode
+                if (isSelected) {
+                    tooltipContent += `**Status:** Will be removed ✓\n\n*Click to keep in folder*`;
+                } else {
+                    tooltipContent += `**Status:** Will stay in folder\n\n*Click to remove from folder*`;
+                }
+            }
+
+            item.tooltip = new vscode.MarkdownString(tooltipContent);
         } else {
             // Normal mode - not in file management
             item.label = node.name;
