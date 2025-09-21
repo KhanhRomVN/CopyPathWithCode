@@ -1,12 +1,13 @@
 /**
  * FILE: src/domain/folder/services/TreeService.ts - ENHANCED VERSION
  * 
- * ENHANCED TREE SERVICE - Improved URI and cross-workspace handling
+ * ENHANCED TREE SERVICE - Improved URI and cross-workspace handling with proper folder URI generation
  * 
  * Fixes:
  * 1. Better URI to relative path conversion for cross-workspace scenarios
  * 2. Improved path normalization
  * 3. Enhanced error handling for invalid URIs
+ * 4. FIXED: Proper folder URI generation for icon display
  */
 
 import { FileNode } from '../entities/FileNode';
@@ -69,7 +70,8 @@ export class TreeService {
         }
     }
 
-    private insertPathIntoTree(tree: Map<string, FileNode>, filePath: string, uri?: string): void {
+    // FIXED: Proper URI generation for both files and folders
+    private insertPathIntoTree(tree: Map<string, FileNode>, filePath: string, originalUri?: string): void {
         const parts = filePath.split('/').filter(part => part.length > 0);
 
         if (parts.length === 0) {
@@ -79,15 +81,36 @@ export class TreeService {
         let currentLevel = tree;
         let currentPath = '';
 
+        // Get workspace path for URI generation
+        const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
+
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
             const isFile = i === parts.length - 1;
             currentPath = currentPath ? `${currentPath}/${part}` : part;
 
             if (!currentLevel.has(part)) {
-                const node = isFile
-                    ? FileNode.createFile(part, currentPath, uri)
-                    : FileNode.createDirectory(part, currentPath);
+                let node: FileNode;
+
+                if (isFile) {
+                    // For files, use original URI or create from path
+                    let fileUri = originalUri;
+                    if (!fileUri && currentWorkspace) {
+                        const fullPath = path.join(currentWorkspace.uri.fsPath, currentPath);
+                        fileUri = vscode.Uri.file(fullPath).toString();
+                    }
+
+                    node = FileNode.createFile(part, currentPath, fileUri);
+                } else {
+                    // FIXED: For directories, always create URI for icon display
+                    let directoryUri: string | undefined;
+                    if (currentWorkspace) {
+                        const fullPath = path.join(currentWorkspace.uri.fsPath, currentPath);
+                        directoryUri = vscode.Uri.file(fullPath).toString();
+                    }
+
+                    node = FileNode.createDirectory(part, currentPath, directoryUri);
+                }
 
                 currentLevel.set(part, node);
             }
@@ -207,7 +230,7 @@ export class TreeService {
                     const filteredChildren = this.filterTree(node.getChildrenArray(), predicate);
                     if (filteredChildren.length > 0) {
                         // Create new directory node with filtered children
-                        const filteredDir = FileNode.createDirectory(node.name, node.path);
+                        const filteredDir = FileNode.createDirectory(node.name, node.path, node.uri);
                         filteredChildren.forEach(child => filteredDir.addChild(child));
                         filtered.push(filteredDir);
                     }
@@ -270,6 +293,25 @@ export class TreeService {
             return true;
         } catch {
             return false;
+        }
+    }
+
+    /**
+     * ADDED: Generate proper directory URI for workspace paths
+     */
+    generateDirectoryUri(relativePath: string, workspacePath?: string): string | undefined {
+        try {
+            const currentWorkspace = workspacePath || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+            if (currentWorkspace) {
+                const fullPath = path.join(currentWorkspace, relativePath);
+                return vscode.Uri.file(fullPath).toString();
+            }
+
+            return undefined;
+        } catch (error) {
+            Logger.warn(`Failed to generate directory URI for: ${relativePath}`, error);
+            return undefined;
         }
     }
 }

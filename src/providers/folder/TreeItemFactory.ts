@@ -223,7 +223,7 @@ export class TreeItemFactory {
                     item.description = '✓ Will be REMOVED from folder';
                 }
             } else {
-                // Show unselected state
+                // Show unselected state with proper file icon
                 if (node.uri) {
                     item.resourceUri = vscode.Uri.parse(node.uri);
                 } else {
@@ -302,18 +302,51 @@ export class TreeItemFactory {
         }
     }
 
+    // FIXED: Improved directory tree item configuration for proper folder icon display
     private configureDirectoryTreeItem(item: vscode.TreeItem, node: FileNode, fileManagementState?: FileManagementState | null): void {
         const fileCount = node.getFileCount();
         const isInFileManagement = fileManagementState?.mode !== 'normal' && fileManagementState?.mode;
 
-        item.iconPath = new vscode.ThemeIcon(
-            fileCount > 0 ? FOLDER_CONSTANTS.ICONS.FOLDER_OPENED : FOLDER_CONSTANTS.ICONS.FOLDER
-        );
+        // SOLUTION 1: Always try resourceUri first for automatic VS Code icon handling
+        if (node.uri) {
+            try {
+                const uri = vscode.Uri.parse(node.uri);
+                item.resourceUri = uri;
+                Logger.debug(`Set resourceUri for directory: ${node.name} -> ${uri.toString()}`);
+            } catch (error) {
+                Logger.warn(`Failed to parse directory URI: ${node.uri}`, error);
+                // Fallback to ThemeIcon
+                item.iconPath = new vscode.ThemeIcon('folder');
+            }
+        } else {
+            // SOLUTION 2: Generate URI from workspace if not available
+            const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
+            if (currentWorkspace && node.path) {
+                try {
+                    const fullPath = path.join(currentWorkspace.uri.fsPath, node.path);
+                    const uri = vscode.Uri.file(fullPath);
+                    item.resourceUri = uri;
+                    Logger.debug(`Generated resourceUri for directory: ${node.name} -> ${uri.toString()}`);
+                } catch (error) {
+                    Logger.warn(`Failed to generate URI for directory: ${node.path}`, error);
+                    // Fallback to ThemeIcon
+                    item.iconPath = new vscode.ThemeIcon('folder');
+                }
+            } else {
+                // SOLUTION 3: Use ThemeIcon as final fallback
+                item.iconPath = new vscode.ThemeIcon(
+                    fileCount > 0 ? 'folder-opened' : 'folder'
+                );
+                Logger.debug(`Using ThemeIcon for directory: ${node.name}`);
+            }
+        }
 
+        // Set context value
         item.contextValue = isInFileManagement
             ? FOLDER_CONSTANTS.CONTEXT_VALUES.FILE_MANAGEMENT_DIRECTORY
             : FOLDER_CONSTANTS.CONTEXT_VALUES.DIRECTORY;
 
+        // Show file count in description
         if (fileCount > 0) {
             item.description = `${fileCount} file${fileCount > 1 ? 's' : ''}`;
         }
@@ -413,7 +446,7 @@ export class TreeItemFactory {
 
                 if (hasMatchingName || filteredChildren.length > 0) {
                     // Create new directory node with filtered children
-                    const filteredDir = FileNode.createDirectory(node.name, node.path);
+                    const filteredDir = FileNode.createDirectory(node.name, node.path, node.uri);
                     filteredChildren.forEach(child => filteredDir.addChild(child));
                     filtered.push(filteredDir);
                 }

@@ -315,6 +315,7 @@ export class FileManagementStateManager {
         return filePaths;
     }
 
+    // FIXED: Enhanced file tree building with proper URI generation
     private buildFileTreeFromPaths(filePaths: string[]): FileNode[] {
         const fileNodes = new Map<string, FileNode>();
 
@@ -329,10 +330,14 @@ export class FileManagementStateManager {
         return FileNode.sortNodes(Array.from(fileNodes.values()));
     }
 
+    // ENHANCED: Proper URI generation for both files and directories
     private insertFileNodeIntoTree(tree: Map<string, FileNode>, filePath: string, originalUri?: string): void {
         const parts = filePath.split('/').filter(part => part.length > 0);
         let currentLevel = tree;
         let currentPath = '';
+
+        // Get workspace path for URI generation
+        const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
 
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
@@ -341,15 +346,28 @@ export class FileManagementStateManager {
 
             if (!currentLevel.has(part)) {
                 let node: FileNode;
-                if (isFile) {
-                    const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
-                    const fullPath = currentWorkspace ? path.join(currentWorkspace, currentPath) : currentPath;
-                    const fileUri = vscode.Uri.file(fullPath).toString();
 
-                    node = FileNode.createFile(part, currentPath, originalUri || fileUri);
+                if (isFile) {
+                    // For files
+                    let fileUri = originalUri;
+                    if (!fileUri && currentWorkspace) {
+                        const fullPath = path.join(currentWorkspace, currentPath);
+                        fileUri = vscode.Uri.file(fullPath).toString();
+                    }
+
+                    node = FileNode.createFile(part, currentPath, fileUri);
                 } else {
-                    node = FileNode.createDirectory(part, currentPath);
+                    // FIXED: For directories, always generate proper URI for icon display
+                    let directoryUri: string | undefined;
+                    if (currentWorkspace) {
+                        const fullPath = path.join(currentWorkspace, currentPath);
+                        directoryUri = vscode.Uri.file(fullPath).toString();
+                    }
+
+                    node = FileNode.createDirectory(part, currentPath, directoryUri);
+                    Logger.debug(`Created directory node: ${part} with URI: ${directoryUri}`);
                 }
+
                 currentLevel.set(part, node);
             }
 

@@ -82,7 +82,7 @@ export class FileNode {
         return count;
     }
 
-    // Factory methods
+    // Factory methods - UPDATED: Thêm URI cho directory
     static createFile(name: string, path: string, uri?: string, size?: number, lastModified?: Date): FileNode {
         return new FileNode({
             name,
@@ -94,12 +94,13 @@ export class FileNode {
         });
     }
 
-    static createDirectory(name: string, path: string): FileNode {
+    static createDirectory(name: string, path: string, uri?: string): FileNode {
         return new FileNode({
             name,
             path,
             isFile: false,
-            children: new Map()
+            children: new Map(),
+            uri // FIXED: Thêm URI cho directory
         });
     }
 
@@ -112,6 +113,23 @@ export class FileNode {
             }
             // Alphabetical within same type
             return a.name.localeCompare(b.name);
+        });
+    }
+
+    static createDirectoryWithUri(name: string, path: string, workspacePath?: string): FileNode {
+        let uri: string | undefined;
+
+        if (workspacePath) {
+            const fullPath = require('path').join(workspacePath, path);
+            uri = `file://${fullPath}`;
+        }
+
+        return new FileNode({
+            name,
+            path,
+            isFile: false,
+            children: new Map(),
+            uri
         });
     }
 }
