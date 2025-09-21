@@ -62,6 +62,26 @@
         "icon": "$(kebab-vertical)"
       },
       {
+        "command": "copy-path-with-code.expandFolder",
+        "title": "Expand Folder",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "copy-path-with-code.collapseFolder",
+        "title": "Collapse Folder", 
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "copy-path-with-code.copyFolderContent",
+        "title": "Copy Content",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "copy-path-with-code.renameFolderQuick",
+        "title": "Rename",
+        "icon": "$(edit)"
+      },
+      {
         "command": "copy-path-with-code.addFileToFolder",
         "title": "Add Current File to Folder"
       },
@@ -277,6 +297,11 @@
         "key": "ctrl+alt+f",
         "mac": "cmd+alt+f",
         "when": "view == folderManager"
+      },
+      {
+        "command": "copy-path-with-code.renameFolderQuick",
+        "key": "F2",
+        "when": "view == folderManager && viewItem == folder"
       }
     ],
     "viewsContainers": {
@@ -309,7 +334,27 @@
         {
           "command": "copy-path-with-code.showFolderMenu",
           "when": "view == folderManager && viewItem == folder",
-          "group": "inline"
+          "group": "inline@1"
+        },
+        {
+          "command": "copy-path-with-code.expandFolder",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline@2"
+        },
+        {
+          "command": "copy-path-with-code.collapseFolder",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline@3"
+        },
+        {
+          "command": "copy-path-with-code.copyFolderContent",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline@4"
+        },
+        {
+          "command": "copy-path-with-code.renameFolderQuick",
+          "when": "view == folderManager && viewItem == folder",
+          "group": "inline@5"
         },
         {
           "command": "copy-path-with-code.copyIndividualFile",

@@ -1,12 +1,16 @@
 /**
- * FILE: src/commands/folder/FolderCommands.ts
+ * FILE: src/commands/folder/FolderCommands.ts - UPDATED
  * 
- * FOLDER COMMANDS - Basic folder operations
+ * FOLDER COMMANDS - Basic folder operations + Enhanced Action Buttons
  * 
  * Handles core folder management operations:
  * - Create folder
  * - Delete folder  
  * - Rename folder
+ * - NEW: Expand folder (action button)
+ * - NEW: Collapse folder (action button)
+ * - NEW: Copy folder content (action button)
+ * - NEW: Quick rename (F2 shortcut)
  */
 
 import * as vscode from 'vscode';
@@ -16,6 +20,9 @@ import { FolderProvider } from '../../providers/FolderProvider';
 import { IWorkspaceService } from '../../infrastructure/folder/workspace/WorkspaceService';
 import { INotificationService } from '../../application/folder/service/FolderApplicationService';
 import { IEditorService } from '../../infrastructure/folder/ui/EditorService';
+import { FolderService } from '../../domain/folder/services/FolderService';
+import { CommandRegistry } from '../../utils/common/CommandRegistry';
+import { Logger } from '../../utils/common/logger';
 
 export function registerFolderCommands(context: vscode.ExtensionContext): void {
     const container = ServiceContainer.getInstance();
@@ -24,26 +31,51 @@ export function registerFolderCommands(context: vscode.ExtensionContext): void {
     const workspaceService = container.resolve<IWorkspaceService>('IWorkspaceService');
     const notificationService = container.resolve<INotificationService>('INotificationService');
     const editorService = container.resolve<IEditorService>('IEditorService');
+    const folderService = container.resolve<FolderService>('FolderService');
 
+    // Original folder commands
     const commands = [
-        vscode.commands.registerCommand('copy-path-with-code.createFolder', () =>
-            handleCreateFolder(commandHandler, treeDataProvider, workspaceService, editorService, notificationService)
-        ),
-
-        vscode.commands.registerCommand('copy-path-with-code.deleteFolder', (folderItem) =>
-            handleDeleteFolder(commandHandler, folderItem, notificationService)
-        ),
-
-        vscode.commands.registerCommand('copy-path-with-code.renameFolder', (folderItem) =>
-            handleRenameFolder(commandHandler, folderItem, notificationService)
-        )
+        {
+            command: 'copy-path-with-code.createFolder',
+            handler: () => handleCreateFolder(commandHandler, treeDataProvider, workspaceService, editorService, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.deleteFolder',
+            handler: (folderItem: any) => handleDeleteFolder(commandHandler, folderItem, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.renameFolder',
+            handler: (folderItem: any) => handleRenameFolder(commandHandler, folderItem, notificationService)
+        },
+        // NEW: Enhanced action button commands
+        {
+            command: 'copy-path-with-code.expandFolder',
+            handler: (folderItem: any) => handleExpandFolder(folderItem, treeDataProvider, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.collapseFolder',
+            handler: (folderItem: any) => handleCollapseFolder(folderItem, treeDataProvider, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.copyFolderContent',
+            handler: (folderItem: any) => handleCopyFolderContent(folderItem, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.renameFolderQuick',
+            handler: (folderItem: any) => handleRenameFolderQuick(folderItem, commandHandler, notificationService, folderService)
+        }
     ];
 
-    commands.forEach(cmd => context.subscriptions.push(cmd));
+    // Register all commands using CommandRegistry
+    commands.forEach(({ command, handler }) => {
+        CommandRegistry.registerCommand(context, command, handler);
+    });
+
+    Logger.debug('Folder commands registered with enhanced action buttons');
 }
 
 // =============================================
-// FOLDER COMMAND HANDLERS
+// ORIGINAL FOLDER COMMAND HANDLERS
 // =============================================
 
 async function handleCreateFolder(
@@ -188,5 +220,138 @@ async function handleRenameFolder(
             folderId,
             newName: newName.trim()
         });
+    }
+}
+
+// =============================================
+// NEW: ENHANCED ACTION BUTTON HANDLERS
+// =============================================
+
+async function handleExpandFolder(
+    folderItem: any,
+    treeDataProvider: FolderProvider,
+    notificationService: INotificationService
+): Promise<void> {
+    try {
+        const folderId = folderItem?.id || folderItem?.folderId;
+        if (!folderId) {
+            notificationService.showError('Invalid folder selection');
+            return;
+        }
+
+        // Clear cache to ensure fresh data and refresh
+        treeDataProvider.clearCache();
+        treeDataProvider.refresh();
+
+        notificationService.showInfo('Folder expanded');
+        Logger.debug(`Expanded folder: ${folderId}`);
+
+    } catch (error) {
+        Logger.error('Failed to expand folder', error);
+        notificationService.showError(`Failed to expand folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+async function handleCollapseFolder(
+    folderItem: any,
+    treeDataProvider: FolderProvider,
+    notificationService: INotificationService
+): Promise<void> {
+    try {
+        const folderId = folderItem?.id || folderItem?.folderId;
+        if (!folderId) {
+            notificationService.showError('Invalid folder selection');
+            return;
+        }
+
+        // Use VS Code's built-in collapse functionality
+        await vscode.commands.executeCommand('list.collapse');
+
+        // Also refresh tree to reset state
+        treeDataProvider.clearCache();
+        treeDataProvider.refresh();
+
+        notificationService.showInfo('Folder collapsed');
+        Logger.debug(`Collapsed folder: ${folderId}`);
+
+    } catch (error) {
+        Logger.error('Failed to collapse folder', error);
+        notificationService.showError(`Failed to collapse folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+async function handleCopyFolderContent(
+    folderItem: any,
+    notificationService: INotificationService
+): Promise<void> {
+    try {
+        const folderId = folderItem?.id || folderItem?.folderId;
+        if (!folderId) {
+            notificationService.showError('Invalid folder selection');
+            return;
+        }
+
+        // Delegate to existing copyFolderContents command
+        await vscode.commands.executeCommand('copy-path-with-code.copyFolderContents', folderItem);
+
+        Logger.debug(`Quick copied folder content: ${folderId}`);
+
+    } catch (error) {
+        Logger.error('Failed to copy folder content', error);
+        notificationService.showError(`Failed to copy folder content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+async function handleRenameFolderQuick(
+    folderItem: any,
+    commandHandler: FolderApplicationService,
+    notificationService: INotificationService,
+    folderService: FolderService
+): Promise<void> {
+    try {
+        const folderId = folderItem?.id || folderItem?.folderId;
+        if (!folderId) {
+            notificationService.showError('Invalid folder selection');
+            return;
+        }
+
+        const folder = folderService.getFolderById(folderId);
+
+        const newName = await vscode.window.showInputBox({
+            prompt: `Rename folder "${folder.name}"`,
+            value: folder.name,
+            title: 'Quick Rename Folder (F2)',
+            validateInput: (value) => {
+                if (!value.trim()) {
+                    return 'Folder name cannot be empty';
+                }
+                if (value.length > 100) {
+                    return 'Folder name cannot exceed 100 characters';
+                }
+                if (/[<>:"/\\|?*]/.test(value)) {
+                    return 'Folder name contains forbidden characters: < > : " / \\ | ? *';
+                }
+                if (value === folder.name) {
+                    return 'Please enter a different name';
+                }
+                return null;
+            }
+        });
+
+        if (!newName) {
+            return; // User cancelled
+        }
+
+        // Use the existing command handler
+        await commandHandler.handleRenameFolder({
+            folderId,
+            newName: newName.trim()
+        });
+
+        Logger.debug(`Quick renamed folder ${folder.name} to ${newName}`);
+
+    } catch (error) {
+        Logger.error('Failed to quick rename folder', error);
+        notificationService.showError(`Failed to rename folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
