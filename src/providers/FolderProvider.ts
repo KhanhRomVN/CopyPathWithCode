@@ -123,9 +123,9 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         this.fileManagementStateManager.toggleFileSelection(filePath);
     }
 
-    selectAllFiles(): void {
+    async selectAllFiles(): Promise<void> {
         Logger.debug('FolderProvider.selectAllFiles');
-        this.fileManagementStateManager.selectAllFiles();
+        await this.fileManagementStateManager.selectAllFiles();
     }
 
     deselectAllFiles(): void {
@@ -137,8 +137,8 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         return this.fileManagementStateManager.getSelectedFiles();
     }
 
-    selectAllFilesInFolder(folderId: string): number {
-        const result = this.fileManagementStateManager.selectAllFilesInFolder(folderId);
+    selectAllFilesInFolder(folderId: string, directoryPath?: string): number {
+        const result = this.fileManagementStateManager.selectAllFilesInFolder(folderId, directoryPath);
         return result;
     }
 

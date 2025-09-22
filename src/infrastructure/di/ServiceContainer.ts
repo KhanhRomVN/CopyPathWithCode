@@ -256,9 +256,6 @@ export class ServiceContainer {
             const clipboardApplicationService = new ClipboardApplicationService(
                 this.resolve('CopyFileContentUseCase'),
                 this.resolve('ClearClipboardUseCase'),
-                this.resolve('SaveToTempUseCase'),
-                this.resolve('TransferTempToSystemUseCase'), // CHANGED from RestoreFromTempUseCase
-                this.resolve('ClearTempStorageUseCase'),
                 clipboardUIRefreshService
             );
             this.register('ClipboardApplicationService', clipboardApplicationService);

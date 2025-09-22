@@ -7,15 +7,6 @@ export interface CopiedFile {
     format: 'normal' | 'error';
 }
 
-export interface TempClipboardFile {
-    displayPath: string;
-    basePath: string;
-    content: string;
-    format: 'normal' | 'error';
-    workspaceId: string;
-    savedAt: number;
-}
-
 export interface Folder {
     id: string;
     name: string;
@@ -38,9 +29,6 @@ export const state = {
     statusBarItem: undefined as vscode.StatusBarItem | undefined,
     clipboardFiles: [] as ClipboardFile[],
     isClipboardDetectionEnabled: true,
-    // Temporary storage is now handled by the infrastructure layer
-    // but we keep track of temp storage availability
-    tempStorageEnabled: true,
 };
 
 export interface ClipboardFile {

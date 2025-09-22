@@ -3,21 +3,17 @@ import * as path from 'path';
 import { state, CopiedFile, ErrorInfo } from '../../models/models';
 import { Logger } from '../../utils/common/logger';
 import { CommandRegistry } from '../../utils/common/CommandRegistry';
-import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
-import { TempStorageService } from '../../domain/clipboard/services/TempStorageService';
-import { ClearTempStorageUseCase } from '../../application/clipboard/usecases/TempClipboardUseCases';
-import { TransferTempToSystemUseCase } from '../../application/clipboard/usecases/TempClipboardUseCases';
 
 // Signature for tracking extension content
 const TRACKING_SIGNATURE = '<-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=->';
 
 export function registerCoreCommands(context: vscode.ExtensionContext) {
-    // Copy commands - these save to BOTH system clipboard AND temp storage
+    // Copy commands
     CommandRegistry.registerCommand(
         context,
         'copy-path-with-code.copyPathWithContent',
         async () => {
-            await copyPathWithContent(); // This function now handles both system and temp storage
+            await copyPathWithContent();
         }
     );
 
@@ -25,29 +21,15 @@ export function registerCoreCommands(context: vscode.ExtensionContext) {
         context,
         'copy-path-with-code.copyPathWithContentAndError',
         async () => {
-            await copyPathWithContentAndError(); // This function now handles both system and temp storage
+            await copyPathWithContentAndError();
         }
     );
 
-    // Transfer temp storage to system clipboard (Ctrl+Alt+Q)
+    // Clear system clipboard (Ctrl+Alt+Z)
     CommandRegistry.registerCommand(
         context,
-        'copy-path-with-code.transferTempToSystem',
-        transferTempToSystem
-    );
-
-    // Clear only temporary storage (Ctrl+Alt+Z)
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.clearTempStorage',
-        clearTempStorage
-    );
-
-    // Clear everything (both system clipboard and temp storage)
-    CommandRegistry.registerCommand(
-        context,
-        'copy-path-with-code.clearAllClipboard',
-        clearAllClipboard
+        'copy-path-with-code.clearClipboard',
+        clearClipboard
     );
 
     // Refresh command remains the same
@@ -116,16 +98,13 @@ async function copyPathWithContent() {
             format: 'normal'
         };
 
-        // 1. Save to system clipboard (state.copiedFiles)
+        // Save to system clipboard
         state.copiedFiles.push(copiedFile);
         await updateClipboardWithSignature();
 
-        // 2. Save to temp storage
-        await saveToTempStorage();
-
         const count = state.copiedFiles.length;
-        Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} to BOTH system clipboard and temp storage`);
-        vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} to system clipboard and temp storage`);
+        Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} to system clipboard`);
+        vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
 
         updateStatusBar();
     } catch (err: any) {
@@ -221,19 +200,16 @@ async function copyPathWithContentAndError() {
             format: 'error'
         };
 
-        // 1. Save to system clipboard (state.copiedFiles)
+        // Save to system clipboard
         state.copiedFiles.push(copiedFile);
         await updateClipboardWithSignature();
-
-        // 2. Save to temp storage
-        await saveToTempStorage();
 
         const count = state.copiedFiles.length;
         const errorCount = errors.length;
 
-        Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to BOTH system clipboard and temp storage`);
+        Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to system clipboard`);
         vscode.window.showInformationMessage(
-            `Copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to system clipboard and temp storage`
+            `Copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to clipboard`
         );
 
         updateStatusBar();
@@ -244,88 +220,36 @@ async function copyPathWithContentAndError() {
     }
 }
 
-// Save current clipboard to temporary storage
-async function saveToTempStorage() {
-    try {
-        const container = ServiceContainer.getInstance();
-        const tempStorageService = container.resolve<TempStorageService>('TempStorageService');
-        await tempStorageService.saveToTempStorage(state.copiedFiles);
-        Logger.debug('Saved to temporary storage');
-    } catch (err: any) {
-        Logger.error('Failed to save to temporary storage', err);
-        // Don't show error to user as this is automatic
-    }
-}
-
-// NEW: Transfer temp storage to system clipboard (Ctrl+Alt+Q)
-async function transferTempToSystem() {
-    try {
-        const container = ServiceContainer.getInstance();
-        const transferTempToSystemUseCase = container.resolve<TransferTempToSystemUseCase>('TransferTempToSystemUseCase');
-        await transferTempToSystemUseCase.execute();
-
-        updateStatusBar();
-
-        Logger.info('Transferred temp storage to system clipboard');
-    } catch (err: any) {
-        const msg = err.message || 'Unknown error';
-        Logger.error('Failed to transfer temp storage to system clipboard', err);
-        vscode.window.showErrorMessage(`Failed to transfer temp storage: ${msg}`);
-    }
-}
-
-async function clearTempStorage() {
-    try {
-        const container = ServiceContainer.getInstance();
-        const clearTempStorageUseCase = container.resolve<ClearTempStorageUseCase>('ClearTempStorageUseCase');
-        await clearTempStorageUseCase.execute();
-
-        // Update status bar after clearing temp storage
-        updateStatusBar();
-
-        Logger.info('Successfully cleared temporary storage');
-    } catch (err: any) {
-        const msg = err.message || 'Unknown error';
-        Logger.error('Failed to clear temporary storage', err);
-        vscode.window.showErrorMessage(`Failed to clear temporary storage: ${msg}`);
-    }
-}
-
-// Clear everything (both system clipboard and temp storage)
-async function clearAllClipboard() {
+// Clear system clipboard (Ctrl+Alt+Z)
+async function clearClipboard() {
     try {
         const beforeCount = state.copiedFiles.length;
-        Logger.debug(`Clearing all clipboard with ${beforeCount} files`);
+        Logger.debug(`Clearing system clipboard with ${beforeCount} files`);
 
         // Clear system clipboard
         state.copiedFiles.length = 0;
         state.clipboardFiles = [];
         await vscode.env.clipboard.writeText('');
 
-        // Clear temporary storage
-        const container = ServiceContainer.getInstance();
-        const clearTempStorageUseCase = container.resolve<ClearTempStorageUseCase>('ClearTempStorageUseCase');
-        await clearTempStorageUseCase.execute();
+        Logger.info('Successfully cleared system clipboard');
+        vscode.window.showInformationMessage('Cleared system clipboard');
 
-        Logger.info('Successfully cleared all clipboard data');
-        vscode.window.showInformationMessage('Cleared all clipboard data (system and temporary storage)');
-
-        // FIXED: Force statusbar hide after clearing everything
+        // Force statusbar hide after clearing
         if (state.statusBarItem) {
             state.statusBarItem.hide();
-            Logger.debug('Status bar hidden after clear all');
+            Logger.debug('Status bar hidden after clear');
         }
 
         // Refresh the clipboard view
         Logger.debug('Refreshing clipboard view');
         vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
 
-        // FIXED: Force update status bar to reflect cleared state
+        // Force update status bar to reflect cleared state
         updateStatusBar();
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
-        Logger.error('Failed to clear all clipboard', err);
-        vscode.window.showErrorMessage(`Failed to clear all clipboard: ${msg}`);
+        Logger.error('Failed to clear clipboard', err);
+        vscode.window.showErrorMessage(`Failed to clear clipboard: ${msg}`);
     }
 }
 
@@ -342,44 +266,13 @@ function updateStatusBar() {
     if (state.statusBarItem) {
         const copiedCount = state.copiedFiles.length;
 
-        try {
-            const container = ServiceContainer.getInstance();
-            const tempStorageService = container.resolve<TempStorageService>('TempStorageService');
-            const tempStats = tempStorageService.getTempStats();
-
-            // FIXED: Only show statusbar if there are actually files
-            if (copiedCount > 0 || tempStats.count > 0) {
-                let statusText = '';
-
-                // Show system clipboard files if available
-                if (copiedCount > 0) {
-                    statusText = `$(clippy) ${copiedCount} system`;
-                }
-
-                // Show temp storage files if available
-                if (tempStats.count > 0) {
-                    if (statusText) {
-                        statusText += ` | $(archive) ${tempStats.count} temp`;
-                    } else {
-                        statusText = `$(archive) ${tempStats.count} temp`;
-                    }
-                }
-
-                state.statusBarItem.text = statusText;
-                state.statusBarItem.show();
-            } else {
-                // FIXED: Hide statusbar when no files exist
-                state.statusBarItem.hide();
-            }
-        } catch (error) {
-            // Fallback: only show system clipboard files if temp service fails
-            if (copiedCount > 0) {
-                state.statusBarItem.text = `$(clippy) ${copiedCount} system`;
-                state.statusBarItem.show();
-            } else {
-                // FIXED: Hide statusbar on error if no files
-                state.statusBarItem.hide();
-            }
+        // Only show statusbar if there are actually files
+        if (copiedCount > 0) {
+            state.statusBarItem.text = `$(clippy) ${copiedCount} file${copiedCount > 1 ? 's' : ''}`;
+            state.statusBarItem.show();
+        } else {
+            // Hide statusbar when no files exist
+            state.statusBarItem.hide();
         }
     }
 }

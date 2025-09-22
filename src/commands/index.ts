@@ -1,7 +1,7 @@
 /**
- * Updated src/commands/index.ts - CORRECTED VERSION
+ * Updated src/commands/index.ts - TEMPORARY STORAGE REMOVED
  * Refactored clipboard commands to use clean architecture services
- * Enhanced folder actions are now included in existing FolderCommands.ts
+ * Temporary storage functionality has been completely removed
  */
 
 import * as vscode from 'vscode';
@@ -12,9 +12,9 @@ import { CommandRegistry } from '../utils/common/CommandRegistry';
 import { Logger } from '../utils/common/logger';
 import { ClipboardDetector } from '../utils/clipboard/clipboardDetector';
 
-// Import command modules - NO NEW IMPORTS
+// Import command modules
 import { registerCoreCommands } from './clipboard/coreCommands';
-import { registerFolderCommands } from './folder/FolderCommands'; // This now includes enhanced actions
+import { registerFolderCommands } from './folder/FolderCommands';
 import { registerFileManagementCommands } from './folder/FileManagementCommands';
 import { registerViewCommands } from './folder/ViewCommands';
 import { registerDirectoryCommands } from './folder/directoryCommands';
@@ -31,7 +31,7 @@ export function registerAllCommands(
     clipboardProvider: ClipboardProvider
 ): void {
     try {
-        Logger.info('Starting command registration with enhanced folder actions');
+        Logger.info('Starting command registration');
 
         // Clear any existing registrations to start fresh
         CommandRegistry.clear();
@@ -48,8 +48,8 @@ export function registerAllCommands(
         registerCriticalCommands(context, treeDataProvider);
         Logger.debug('Critical commands registered');
 
-        // Register command modules - FolderCommands now includes enhanced actions
-        registerFolderCommands(context); // This now includes the new action buttons
+        // Register command modules
+        registerFolderCommands(context);
         registerFileManagementCommands(context);
         registerViewCommands(context);
         registerDirectoryCommands(context, treeDataProvider);
@@ -60,7 +60,7 @@ export function registerAllCommands(
         registerClipboardCommands(context, clipboardProvider);
 
         const registeredCommands = CommandRegistry.getRegisteredCommands();
-        Logger.info(`Successfully registered ${registeredCommands.length} commands (including enhanced folder actions)`);
+        Logger.info(`Successfully registered ${registeredCommands.length} commands`);
         Logger.debug('Registered commands:', registeredCommands);
 
     } catch (error) {

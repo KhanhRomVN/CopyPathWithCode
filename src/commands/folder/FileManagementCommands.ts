@@ -1,3 +1,6 @@
+// FILE: src/commands/folder/FileManagementCommands.ts - FIXED VERSION
+// Fix for selectAllFilesInFolder command receiving wrong folder ID
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
@@ -8,6 +11,7 @@ import { INotificationService } from '../../application/folder/service/FolderApp
 import { IEditorService } from '../../infrastructure/folder/ui/EditorService';
 import { CommandRegistry } from '../../utils/common/CommandRegistry';
 import { FolderService } from '../../domain/folder/services/FolderService';
+import { Logger } from '../../utils/common/logger';
 
 export function registerFileManagementCommands(context: vscode.ExtensionContext): void {
     const container = ServiceContainer.getInstance();
@@ -102,19 +106,24 @@ function handleToggleFileSelection(
     }
 }
 
-function handleSelectAllFiles(
+async function handleSelectAllFiles(
     treeDataProvider: FolderProvider,
     notificationService: INotificationService
-): void {
-    const previousCount = treeDataProvider.getSelectedFiles().length;
-    treeDataProvider.selectAllFiles();
-    const newCount = treeDataProvider.getSelectedFiles().length;
-    const addedCount = newCount - previousCount;
+): Promise<void> {
+    try {
+        const previousCount = treeDataProvider.getSelectedFiles().length;
+        await treeDataProvider.selectAllFiles();
+        const newCount = treeDataProvider.getSelectedFiles().length;
+        const addedCount = newCount - previousCount;
 
-    if (addedCount > 0) {
-        notificationService.showInfo(`Selected ${addedCount} additional files (${newCount} total)`);
-    } else {
-        notificationService.showInfo('All files are already selected');
+        if (addedCount > 0) {
+            notificationService.showInfo(`Selected ${addedCount} additional files (${newCount} total)`);
+        } else {
+            notificationService.showInfo('All files are already selected');
+        }
+    } catch (error) {
+        Logger.error('Error in handleSelectAllFiles:', error);
+        notificationService.showError(`Failed to select all files: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
@@ -129,6 +138,189 @@ function handleDeselectAllFiles(
         notificationService.showInfo(`Deselected ${previousCount} files`);
     } else {
         notificationService.showInfo('No files were selected');
+    }
+}
+
+// =============================================
+// FIXED: Folder Selection Handlers
+// =============================================
+
+function handleSelectAllFilesInFolder(
+    treeDataProvider: FolderProvider,
+    folderItem: any,
+    notificationService: INotificationService
+): void {
+    try {
+        Logger.debug('=== START handleSelectAllFilesInFolder ===');
+        Logger.debug('folderItem received:', {
+            label: folderItem?.label,
+            id: folderItem?.id,
+            folderId: folderItem?.folderId,
+            treeNode: folderItem?.treeNode ? {
+                name: folderItem.treeNode.name,
+                path: folderItem.treeNode.path,
+                isFile: folderItem.treeNode.isFile,
+                isDirectory: folderItem.treeNode.isDirectory
+            } : null,
+            contextValue: folderItem?.contextValue
+        });
+
+        // ENHANCED: Multiple strategies to get correct folder ID
+        const fileManagementState = treeDataProvider.getFileManagementState();
+        Logger.debug('File management state:', {
+            mode: fileManagementState.mode,
+            folderId: fileManagementState.folderId,
+            selectedFilesCount: fileManagementState.selectedFiles.size
+        });
+
+        let folderId: string | null = null;
+        let targetDirectoryPath: string | null = null;
+
+        // Strategy 1: Get from file management state (most reliable for main folder)
+        if (fileManagementState.folderId) {
+            folderId = fileManagementState.folderId;
+            Logger.debug(`Strategy 1: Got folder ID from file management state: ${folderId}`);
+        }
+
+        // Strategy 2: Try to extract directory path from folderItem for subdirectories
+        if (folderItem?.treeNode) {
+            if (folderItem.treeNode.isDirectory) {
+                targetDirectoryPath = folderItem.treeNode.path;
+                Logger.debug(`Strategy 2: Got directory path from treeNode: ${targetDirectoryPath}`);
+            }
+        }
+
+        // Strategy 3: Try to extract from folderItem properties
+        if (!folderId && folderItem) {
+            if (folderItem.folderId) {
+                folderId = folderItem.folderId;
+                Logger.debug(`Strategy 3: Got folder ID from folderItem.folderId: ${folderId}`);
+            } else if (folderItem.id && !folderItem.id.includes('-add') && !folderItem.id.includes('-remove')) {
+                folderId = folderItem.id;
+                Logger.debug(`Strategy 4: Got folder ID from folderItem.id: ${folderId}`);
+            }
+        }
+
+        if (!folderId) {
+            Logger.error('No valid folder ID found for selectAllFilesInFolder');
+            notificationService.showError('No active file management operation or invalid folder selection');
+            return;
+        }
+
+        // Validate folder exists before proceeding
+        const container = ServiceContainer.getInstance();
+        const folderService = container.resolve<FolderService>('FolderService');
+
+        try {
+            const folder = folderService.getFolderById(folderId);
+            Logger.debug(`Folder validation successful: ${folder.name} with ${folder.fileCount} files`);
+
+            // NEW: If we have a target directory path, log the files that should be selected
+            if (targetDirectoryPath) {
+                Logger.debug(`Looking for files in directory: ${targetDirectoryPath}`);
+                const filesInDirectory = folder.files.filter(uri => {
+                    try {
+                        const relativePath = vscode.workspace.asRelativePath(vscode.Uri.parse(uri));
+                        return relativePath.startsWith(targetDirectoryPath + '/') ||
+                            relativePath === targetDirectoryPath;
+                    } catch (error) {
+                        return false;
+                    }
+                });
+                Logger.debug(`Found ${filesInDirectory.length} files in target directory`);
+                filesInDirectory.forEach((uri, index) => {
+                    Logger.debug(`File ${index + 1} in directory: ${uri}`);
+                });
+            }
+
+        } catch (validationError) {
+            Logger.error(`Folder validation failed for ID: ${folderId}`, validationError);
+            notificationService.showError(`Folder not found. Please refresh and try again.`);
+            return;
+        }
+
+        // ENHANCED: Pass directory path to the selection method
+        if (folderId === null) {
+            Logger.error('folderId is null, cannot select files');
+            notificationService.showError('Invalid folder selection');
+            return;
+        }
+
+        const selectedCount = treeDataProvider.selectAllFilesInFolder(folderId, targetDirectoryPath || undefined);
+
+        if (selectedCount > 0) {
+            const locationInfo = targetDirectoryPath ? ` in directory "${targetDirectoryPath}"` : ' in current folder';
+            notificationService.showInfo(`Selected ${selectedCount} files${locationInfo}`);
+        } else {
+            const locationInfo = targetDirectoryPath ? ` in directory "${targetDirectoryPath}"` : ' in this folder';
+            notificationService.showInfo(`No files found to select${locationInfo}`);
+        }
+
+        Logger.debug('=== END handleSelectAllFilesInFolder ===');
+
+    } catch (error) {
+        Logger.error('Error in handleSelectAllFilesInFolder:', error);
+        notificationService.showError(`Failed to select files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+function handleUnselectAllFilesInFolder(
+    treeDataProvider: FolderProvider,
+    folderItem: any,
+    notificationService: INotificationService
+): void {
+    try {
+        // ENHANCED: Multiple strategies to get correct folder ID
+        const fileManagementState = treeDataProvider.getFileManagementState();
+
+        let folderId: string | null = null;
+
+        // Strategy 1: Get from file management state (most reliable)
+        if (fileManagementState.folderId) {
+            folderId = fileManagementState.folderId;
+            Logger.debug(`Strategy 1: Got folder ID from file management state: ${folderId}`);
+        }
+
+        // Strategy 2: Try to extract from folderItem if state is missing
+        if (!folderId && folderItem) {
+            if (folderItem.folderId) {
+                folderId = folderItem.folderId;
+                Logger.debug(`Strategy 2: Got folder ID from folderItem.folderId: ${folderId}`);
+            } else if (folderItem.id && !folderItem.id.includes('-add') && !folderItem.id.includes('-remove')) {
+                folderId = folderItem.id;
+                Logger.debug(`Strategy 3: Got folder ID from folderItem.id: ${folderId}`);
+            }
+        }
+
+        if (!folderId) {
+            Logger.error('No valid folder ID found for unselectAllFilesInFolder');
+            notificationService.showError('No active file management operation or invalid folder selection');
+            return;
+        }
+
+        // Validate folder exists before proceeding
+        const container = ServiceContainer.getInstance();
+        const folderService = container.resolve<FolderService>('FolderService');
+
+        try {
+            const folder = folderService.getFolderById(folderId);
+            Logger.debug(`Folder validation successful: ${folder.name} with ${folder.fileCount} files`);
+        } catch (validationError) {
+            Logger.error(`Folder validation failed for ID: ${folderId}`, validationError);
+            notificationService.showError(`Folder not found. Please refresh and try again.`);
+            return;
+        }
+
+        const unselectedCount = treeDataProvider.unselectAllFilesInFolder(folderId);
+        if (unselectedCount > 0) {
+            notificationService.showInfo(`Unselected ${unselectedCount} files in current folder`);
+        } else {
+            notificationService.showInfo('No files were selected to unselect');
+        }
+
+    } catch (error) {
+        Logger.error('Error in handleUnselectAllFilesInFolder:', error);
+        notificationService.showError(`Failed to unselect files: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
@@ -263,44 +455,6 @@ async function handleOpenFolderFiles(
         closeExistingTabs: closeExisting,
         validateFiles: true
     });
-}
-
-function handleSelectAllFilesInFolder(
-    treeDataProvider: FolderProvider,
-    folderItem: any,
-    notificationService: INotificationService
-): void {
-    const folderId = folderItem?.id || folderItem?.folderId;
-    if (!folderId) {
-        notificationService.showError('Invalid folder selection');
-        return;
-    }
-
-    const selectedCount = treeDataProvider.selectAllFilesInFolder(folderId);
-    if (selectedCount > 0) {
-        notificationService.showInfo(`Selected ${selectedCount} files in folder`);
-    } else {
-        notificationService.showInfo('No files found in folder');
-    }
-}
-
-function handleUnselectAllFilesInFolder(
-    treeDataProvider: FolderProvider,
-    folderItem: any,
-    notificationService: INotificationService
-): void {
-    const folderId = folderItem?.id || folderItem?.folderId;
-    if (!folderId) {
-        notificationService.showError('Invalid folder selection');
-        return;
-    }
-
-    const unselectedCount = treeDataProvider.unselectAllFilesInFolder(folderId);
-    if (unselectedCount > 0) {
-        notificationService.showInfo(`Unselected ${unselectedCount} files in folder`);
-    } else {
-        notificationService.showInfo('No files were selected in folder');
-    }
 }
 
 async function handleConfirmFileManagement(
