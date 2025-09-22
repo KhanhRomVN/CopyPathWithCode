@@ -11,6 +11,9 @@ import { FileWatcher } from './utils/folder/fileWatcher';
 import { ClipboardService } from './domain/clipboard/services/ClipboardService';
 import { ClipboardDetector } from './utils/clipboard/clipboardDetector';
 
+// SOLUTION: Import the function to set tree view reference
+import { setFolderTreeView } from './commands/folder/FolderCommands';
+
 let clipboardMonitoringInterval: NodeJS.Timeout | undefined;
 let clipboardDetector: ClipboardDetector | undefined;
 
@@ -45,7 +48,11 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Set tree view reference in provider to manage expansion state
         treeDataProvider.setTreeView(treeView);
-        Logger.debug('Folder tree view created with expansion state management');
+
+        // SOLUTION: Also set tree view reference in FolderCommands for expand/collapse operations
+        setFolderTreeView(treeView);
+
+        Logger.debug('Folder tree view created with expansion state management and command integration');
 
         // Create clipboard provider
         const clipboardProvider = new ClipboardProvider();

@@ -23,6 +23,9 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     // Prevent refresh loops
     private isRefreshing = false;
 
+    // SOLUTION: Store tree structure for getParent implementation
+    private treeItemParentMap = new Map<string, vscode.TreeItem>();
+
     constructor(private readonly folderTreeService: IFolderTreeService) {
         // Initialize managers
         this.treeItemFactory = new TreeItemFactory(folderTreeService);
@@ -35,7 +38,27 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         // SOLUTION: Connect FileManagementStateManager to use null refresh
         this.fileManagementStateManager.setSelectionChangeEmitter(this._onDidChange);
 
-        Logger.debug('FolderProvider initialized with null refresh solution');
+        Logger.debug('FolderProvider initialized with getParent support');
+    }
+
+    // CRITICAL FIX: Implement getParent method for reveal functionality
+    getParent(element: vscode.TreeItem): vscode.TreeItem | undefined {
+        if (!element.id) {
+            Logger.debug('getParent: element has no ID');
+            return undefined;
+        }
+
+        const parent = this.treeItemParentMap.get(element.id);
+        Logger.debug(`getParent: element ${element.label} -> parent ${parent?.label || 'none'}`);
+        return parent;
+    }
+
+    // Helper method to track parent-child relationships
+    private trackParentChild(parent: vscode.TreeItem | undefined, child: vscode.TreeItem): void {
+        if (child.id && parent?.id) {
+            this.treeItemParentMap.set(child.id, parent);
+            Logger.debug(`Tracked parent relationship: ${child.label} -> ${parent.label}`);
+        }
     }
 
     // Set tree view reference for expansion management
@@ -46,6 +69,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     // Public API methods
     switchViewMode(mode: 'workspace' | 'global'): void {
         this.viewModeManager.setViewMode(mode);
+        this.clearParentMap(); // Clear parent map when switching modes
         this.refresh();
         vscode.commands.executeCommand('setContext', 'copyPathWithCode.viewMode', mode);
     }
@@ -59,12 +83,19 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
 
         this.isRefreshing = true;
         this.cacheManager.clearCache();
+        this.clearParentMap(); // Clear parent map on refresh
         this._onDidChange.fire(undefined);
 
         setTimeout(() => {
             this.expansionStateManager.restoreExpansionState();
             this.isRefreshing = false;
         }, 150);
+    }
+
+    // Clear parent mapping
+    private clearParentMap(): void {
+        this.treeItemParentMap.clear();
+        Logger.debug('Parent mapping cleared');
     }
 
     // File Management Mode methods
@@ -86,26 +117,20 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         return this.fileManagementStateManager.getState();
     }
 
-    // SOLUTION: File Selection methods using null refresh
+    // File Selection methods using null refresh
     toggleFileSelection(filePath: string): void {
         Logger.debug(`FolderProvider.toggleFileSelection: ${filePath}`);
-
-        // The FileManagementStateManager handles the state change and triggers null refresh
         this.fileManagementStateManager.toggleFileSelection(filePath);
-
-        // No additional refresh needed - null refresh from FileManagementStateManager handles it
     }
 
     selectAllFiles(): void {
         Logger.debug('FolderProvider.selectAllFiles');
         this.fileManagementStateManager.selectAllFiles();
-        // FileManagementStateManager handles null refresh
     }
 
     deselectAllFiles(): void {
         Logger.debug('FolderProvider.deselectAllFiles');
         this.fileManagementStateManager.deselectAllFiles();
-        // FileManagementStateManager handles null refresh
     }
 
     getSelectedFiles(): string[] {
@@ -114,13 +139,11 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
 
     selectAllFilesInFolder(folderId: string): number {
         const result = this.fileManagementStateManager.selectAllFilesInFolder(folderId);
-        // FileManagementStateManager handles null refresh
         return result;
     }
 
     unselectAllFilesInFolder(folderId: string): number {
         const result = this.fileManagementStateManager.unselectAllFilesInFolder(folderId);
-        // FileManagementStateManager handles null refresh
         return result;
     }
 
@@ -174,17 +197,27 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         return this.getWorkspaceChildren(element);
     }
 
-    // Private methods
+    // Private methods - UPDATED to track parent relationships
     private async getWorkspaceChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
         Logger.debug('getWorkspaceChildren called', { element: element?.label });
 
         if (!element) {
-            return this.isInFileManagementMode()
-                ? this.fileManagementStateManager.getFileManagementRootItems(this.treeItemFactory)
+            const items = this.isInFileManagementMode()
+                ? await this.fileManagementStateManager.getFileManagementRootItems(this.treeItemFactory)
                 : this.treeItemFactory.getFolderItems(
                     this.viewModeManager.getViewMode(),
                     this.searchManager.getCurrentSearchTerm() || undefined
                 );
+
+            // Track root items (no parent)
+            items.forEach(item => {
+                if (item.id) {
+                    // Root items have no parent
+                    Logger.debug(`Root item: ${item.label} (${item.id})`);
+                }
+            });
+
+            return items;
         }
 
         return this.handleElementExpansion(element);
@@ -194,9 +227,18 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         Logger.debug('getGlobalChildren called', { element: element?.label });
 
         if (!element) {
-            return this.isInFileManagementMode()
-                ? this.fileManagementStateManager.getFileManagementRootItems(this.treeItemFactory)
+            const items = this.isInFileManagementMode()
+                ? await this.fileManagementStateManager.getFileManagementRootItems(this.treeItemFactory)
                 : this.treeItemFactory.getGlobalFolderItems(this.searchManager.getCurrentSearchTerm() || undefined);
+
+            // Track root items
+            items.forEach(item => {
+                if (item.id) {
+                    Logger.debug(`Global root item: ${item.label} (${item.id})`);
+                }
+            });
+
+            return items;
         }
 
         return this.handleElementExpansion(element);
@@ -208,27 +250,39 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         // File management mode navigation
         if (this.isInFileManagementMode()) {
             if (elementAny.isFileManagementHeader) {
-                return this.fileManagementStateManager.getFileManagementFiles(this.treeItemFactory);
+                const items = await this.fileManagementStateManager.getFileManagementFiles(this.treeItemFactory);
+                // Track parent relationships for file management items
+                items.forEach(item => this.trackParentChild(element, item));
+                return items;
             }
             if (elementAny.treeNode) {
-                return this.treeItemFactory.convertFileNodeToItems(
+                const items = this.treeItemFactory.convertFileNodeToItems(
                     elementAny.treeNode.getChildrenArray(),
                     this.fileManagementStateManager.getState(),
                     this.searchManager.getCurrentSearchTerm() || undefined
                 );
+                // Track parent relationships
+                items.forEach(item => this.trackParentChild(element, item));
+                return items;
             }
             return [];
         }
 
         // Directory expansion
         if (elementAny.treeNode && elementAny.folderId) {
-            return this.expandDirectory(elementAny);
+            const items = await this.expandDirectory(elementAny);
+            // Track parent relationships for directory items
+            items.forEach(item => this.trackParentChild(element, item));
+            return items;
         }
 
         // Folder root expansion
         const folderId = elementAny.folderId || elementAny.id;
         if (folderId) {
-            return this.expandFolder(folderId);
+            const items = await this.expandFolder(folderId);
+            // Track parent relationships for folder items
+            items.forEach(item => this.trackParentChild(element, item));
+            return items;
         }
 
         return [];
@@ -237,7 +291,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     private async expandDirectory(elementAny: any): Promise<vscode.TreeItem[]> {
         const cacheKey = `${this.viewModeManager.getViewMode()}-${elementAny.folderId}-${elementAny.treeNode.path}`;
 
-        // SOLUTION: Don't use cache during file management to ensure fresh TreeItems with correct selection state
+        // Don't use cache during file management to ensure fresh TreeItems with correct selection state
         if (this.isInFileManagementMode()) {
             try {
                 const folder = this.folderTreeService.getFolderById(elementAny.folderId);
@@ -277,7 +331,7 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     private async expandFolder(folderId: string): Promise<vscode.TreeItem[]> {
         const cacheKey = `${this.viewModeManager.getViewMode()}-${folderId}-root`;
 
-        // SOLUTION: Don't use cache during file management
+        // Don't use cache during file management
         if (this.isInFileManagementMode()) {
             try {
                 const folder = this.folderTreeService.getFolderById(folderId);
@@ -321,5 +375,6 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     dispose(): void {
         this.fileManagementStateManager.dispose();
         this.cacheManager.clearCache();
+        this.clearParentMap();
     }
 }
