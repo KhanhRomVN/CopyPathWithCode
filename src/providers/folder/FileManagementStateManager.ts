@@ -16,6 +16,8 @@ export class FileManagementStateManager {
     };
 
     private currentFileTree: FileNode[] = [];
+    private searchTerm: string = '';
+    private searchResults: Set<string> = new Set();
 
     // SOLUTION: Use targeted refresh emitter instead of full tree refresh
     private selectionChangeEmitter: vscode.EventEmitter<vscode.TreeItem | undefined | null | void> | undefined;
@@ -54,6 +56,7 @@ export class FileManagementStateManager {
             selectedFolders: new Set()
         };
         this.currentFileTree = [];
+        this.clearSearchTerm();
     }
 
     // SOLUTION: Use null refresh to trigger TreeItem recreation without tree collapse
@@ -151,7 +154,6 @@ export class FileManagementStateManager {
                 }
             });
 
-
             // Use null refresh for bulk operations
             if (this.selectionChangeEmitter) {
                 this.selectionChangeEmitter.fire(null);
@@ -170,7 +172,6 @@ export class FileManagementStateManager {
 
         // Clear all selected files
         this.fileManagementState.selectedFiles.clear();
-
 
         // Use null refresh for bulk operations to update UI
         if (this.selectionChangeEmitter) {
@@ -322,6 +323,111 @@ export class FileManagementStateManager {
         }
     }
 
+    // NEW: Search functionality
+    setSearchTerm(term: string): void {
+        this.searchTerm = term.toLowerCase().trim();
+        this.applySearchFilter();
+
+        // Trigger refresh to update the tree view with search results
+        if (this.selectionChangeEmitter) {
+            this.selectionChangeEmitter.fire(null);
+        }
+    }
+
+    clearSearchTerm(): void {
+        this.searchTerm = '';
+        this.searchResults.clear();
+
+        // Trigger refresh to show full tree again
+        if (this.selectionChangeEmitter) {
+            this.selectionChangeEmitter.fire(null);
+        }
+    }
+
+    getSearchTerm(): string {
+        return this.searchTerm;
+    }
+
+    hasActiveSearch(): boolean {
+        return this.searchTerm.length > 0;
+    }
+
+    private applySearchFilter(): void {
+        this.searchResults.clear();
+
+        if (!this.searchTerm) {
+            return;
+        }
+
+        // Search through the current file tree
+        const searchInNodes = (nodes: FileNode[]): void => {
+            for (const node of nodes) {
+                if (node.name.toLowerCase().includes(this.searchTerm)) {
+                    this.searchResults.add(node.path);
+
+                    // Also include all parent directories to ensure the path is visible
+                    this.includeParentPaths(node.path);
+                }
+
+                if (node.isDirectory && node.children.size > 0) {
+                    searchInNodes(node.getChildrenArray());
+                }
+            }
+        };
+
+        if (this.currentFileTree.length > 0) {
+            searchInNodes(this.currentFileTree);
+        }
+    }
+
+    private includeParentPaths(filePath: string): void {
+        let currentPath = filePath;
+        while (currentPath.includes('/')) {
+            currentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+            if (currentPath) {
+                this.searchResults.add(currentPath);
+            }
+        }
+    }
+
+    // NEW: Filter file tree based on search term
+    filterFileTreeForSearch(nodes: FileNode[]): FileNode[] {
+        if (!this.searchTerm) {
+            return nodes;
+        }
+
+        const filterNodes = (nodeList: FileNode[]): FileNode[] => {
+            const filtered: FileNode[] = [];
+
+            for (const node of nodeList) {
+                if (this.searchResults.has(node.path)) {
+                    if (node.isFile) {
+                        filtered.push(node);
+                    } else {
+                        // For directories, include with filtered children
+                        const filteredChildren = filterNodes(node.getChildrenArray());
+                        if (filteredChildren.length > 0) {
+                            const filteredDir = FileNode.createDirectory(node.name, node.path, node.uri);
+                            filteredChildren.forEach(child => filteredDir.addChild(child));
+                            filtered.push(filteredDir);
+                        }
+                    }
+                } else if (node.isDirectory) {
+                    // Check if any children match
+                    const filteredChildren = filterNodes(node.getChildrenArray());
+                    if (filteredChildren.length > 0) {
+                        const filteredDir = FileNode.createDirectory(node.name, node.path, node.uri);
+                        filteredChildren.forEach(child => filteredDir.addChild(child));
+                        filtered.push(filteredDir);
+                    }
+                }
+            }
+
+            return FileNode.sortNodes(filtered);
+        };
+
+        return filterNodes(nodes);
+    }
 
     // NEW: Helper method to normalize paths for consistent comparison
     private normalizePath(path: string): string {
@@ -346,7 +452,6 @@ export class FileManagementStateManager {
                 }
             });
 
-
             // Use null refresh for folder operations
             if (this.selectionChangeEmitter) {
                 this.selectionChangeEmitter.fire(null);
@@ -368,32 +473,48 @@ export class FileManagementStateManager {
             const headerItem = treeItemFactory.createFileManagementHeader(folder, this.fileManagementState.mode as 'add' | 'remove');
             items.push(headerItem);
 
+            // NEW: Add search header if search is active
+            if (this.hasActiveSearch()) {
+                const fileTree = await this.getCurrentFileTree();
+                const resultCount = this.countSearchResults(fileTree);
+
+                items.push(
+                    treeItemFactory.createSearchHeaderItem(this.searchTerm, resultCount),
+                    treeItemFactory.createClearSearchButton()
+                );
+            }
+
             // UPDATED: Action buttons with mode-specific labels and behavior
             const selectedCount = this.getSelectedFiles().length;
 
+            // NEW: Add search button
+            items.push(
+                treeItemFactory.createActionButton('Search Files', 'search', 'searchFiles', 'copy-path-with-code.showFileManagementSearch')
+            );
+
             if (this.fileManagementState.mode === 'add') {
                 items.push(
-                    treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
-                    treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
+                    treeItemFactory.createActionButton('Select All Files', 'check-all', 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
+                    treeItemFactory.createActionButton('Deselect All Files', 'close-all', 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
                     treeItemFactory.createActionButton(
                         `Confirm Add/Remove (${selectedCount} selected)`,
-                        FOLDER_CONSTANTS.ICONS.CHECK,
+                        'check',
                         'confirmFileManagement',
                         'copy-path-with-code.confirmFileManagement'
                     ),
-                    treeItemFactory.createActionButton('Cancel', FOLDER_CONSTANTS.ICONS.CLOSE, 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
+                    treeItemFactory.createActionButton('Cancel', 'close', 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
                 );
             } else { // remove mode
                 items.push(
-                    treeItemFactory.createActionButton('Select All Files', FOLDER_CONSTANTS.ICONS.CHECK_ALL, 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
-                    treeItemFactory.createActionButton('Deselect All Files', FOLDER_CONSTANTS.ICONS.CLOSE_ALL, 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
+                    treeItemFactory.createActionButton('Select All Files', 'check-all', 'selectAllFiles', 'copy-path-with-code.selectAllFiles'),
+                    treeItemFactory.createActionButton('Deselect All Files', 'close-all', 'deselectAllFiles', 'copy-path-with-code.deselectAllFiles'),
                     treeItemFactory.createActionButton(
                         `Remove Selected (${selectedCount} to remove)`,
-                        FOLDER_CONSTANTS.ICONS.TRASH,
+                        'trash',
                         'confirmFileManagement',
                         'copy-path-with-code.confirmFileManagement'
                     ),
-                    treeItemFactory.createActionButton('Cancel', FOLDER_CONSTANTS.ICONS.CLOSE, 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
+                    treeItemFactory.createActionButton('Cancel', 'close', 'cancelFileManagement', 'copy-path-with-code.cancelFileManagement')
                 );
             }
 
@@ -404,6 +525,44 @@ export class FileManagementStateManager {
         }
     }
 
+    private countSearchResults(nodes: FileNode[]): number {
+        if (!this.searchTerm) return 0;
+
+        let count = 0;
+        const countNodes = (nodeList: FileNode[]) => {
+            for (const node of nodeList) {
+                if (node.name.toLowerCase().includes(this.searchTerm)) {
+                    count++;
+                }
+                if (node.isDirectory && node.children.size > 0) {
+                    countNodes(node.getChildrenArray());
+                }
+            }
+        };
+
+        countNodes(nodes);
+        return count;
+    }
+
+    private async getCurrentFileTree(): Promise<FileNode[]> {
+        if (this.currentFileTree.length > 0) {
+            return this.currentFileTree;
+        }
+
+        // Build file tree if not already built
+        let files: string[] = [];
+        if (this.fileManagementState.mode === 'add') {
+            const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
+            files = allUris.map(uri => this.getRelativePathFromUri(uri.toString()));
+        } else {
+            const folder = this.folderTreeService.getFolderById(this.fileManagementState.folderId!);
+            files = folder.files.map(fileUri => this.getRelativePathFromUri(fileUri));
+        }
+
+        return this.buildFileTreeFromPaths(files);
+    }
+
+    // UPDATED: Modify getFileManagementFiles to apply search filter
     async getFileManagementFiles(treeItemFactory: TreeItemFactory): Promise<vscode.TreeItem[]> {
         try {
             let files: string[];
@@ -421,7 +580,12 @@ export class FileManagementStateManager {
             const tree = this.buildFileTreeFromPaths(files);
             this.currentFileTree = tree;
 
-            return treeItemFactory.convertFileNodeToItems(tree, this.fileManagementState);
+            // Apply search filter if active
+            const filteredTree = this.hasActiveSearch()
+                ? this.filterFileTreeForSearch(tree)
+                : tree;
+
+            return treeItemFactory.convertFileNodeToItems(filteredTree, this.fileManagementState);
         } catch (error) {
             Logger.error('Failed to get file management files', error);
             return [];

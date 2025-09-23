@@ -302,6 +302,25 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         }
     }
 
+    setFileManagementSearchTerm(term: string): void {
+        this.fileManagementStateManager.setSearchTerm(term);
+        this.refresh(); // Refresh to apply filter
+    }
+
+    clearFileManagementSearch(): void {
+        this.fileManagementStateManager.clearSearchTerm();
+        this.refresh(); // Refresh to clear filter
+    }
+
+    getFileManagementSearchTerm(): string {
+        return this.fileManagementStateManager.getSearchTerm();
+    }
+
+    hasFileManagementSearch(): boolean {
+        return this.fileManagementStateManager.hasActiveSearch();
+    }
+
+
     private async expandFolder(folderId: string): Promise<vscode.TreeItem[]> {
         const cacheKey = `${this.viewModeManager.getViewMode()}-${folderId}-root`;
 

@@ -1,5 +1,5 @@
-// FILE: src/commands/folder/FileManagementCommands.ts - FIXED VERSION
-// Fix for selectAllFilesInFolder command receiving wrong folder ID
+// FILE: src/commands/folder/FileManagementCommands.ts - UPDATED WITH SEARCH FUNCTIONALITY
+// Includes search commands for file management
 
 import * as vscode from 'vscode';
 import * as path from 'path';
@@ -67,6 +67,16 @@ export function registerFileManagementCommands(context: vscode.ExtensionContext)
         {
             command: 'copy-path-with-code.cancelFileManagement',
             handler: () => handleCancelFileManagement(treeDataProvider, notificationService)
+        },
+
+        // NEW: Search commands for file management
+        {
+            command: 'copy-path-with-code.showFileManagementSearch',
+            handler: () => handleShowFileManagementSearch(treeDataProvider, notificationService)
+        },
+        {
+            command: 'copy-path-with-code.clearFileManagementSearch',
+            handler: () => handleClearFileManagementSearch(treeDataProvider, notificationService)
         }
     ];
 
@@ -74,6 +84,60 @@ export function registerFileManagementCommands(context: vscode.ExtensionContext)
     commands.forEach(({ command, handler }) => {
         CommandRegistry.registerCommand(context, command, handler);
     });
+}
+
+// =============================================
+// NEW: SEARCH HANDLERS FOR FILE MANAGEMENT
+// =============================================
+
+/**
+ * Handler for showing file management search input
+ */
+async function handleShowFileManagementSearch(
+    treeDataProvider: FolderProvider,
+    notificationService: INotificationService
+): Promise<void> {
+    const currentSearchTerm = treeDataProvider.getFileManagementSearchTerm();
+
+    const searchTerm = await vscode.window.showInputBox({
+        prompt: 'Enter search term to filter files',
+        placeHolder: 'Search files by name...',
+        title: 'Search Files in Workspace',
+        value: currentSearchTerm || '',
+        validateInput: (value) => {
+            if (value && value.length > 100) {
+                return 'Search term too long (max 100 characters)';
+            }
+            return null;
+        }
+    });
+
+    if (searchTerm === undefined) {
+        return; // User cancelled
+    }
+
+    if (!searchTerm.trim()) {
+        treeDataProvider.clearFileManagementSearch();
+        notificationService.showInfo('Search filter cleared');
+    } else {
+        treeDataProvider.setFileManagementSearchTerm(searchTerm.trim());
+        notificationService.showInfo(`Searching for files containing: "${searchTerm}"`);
+    }
+}
+
+/**
+ * Handler for clearing file management search
+ */
+function handleClearFileManagementSearch(
+    treeDataProvider: FolderProvider,
+    notificationService: INotificationService
+): void {
+    if (treeDataProvider.hasFileManagementSearch()) {
+        treeDataProvider.clearFileManagementSearch();
+        notificationService.showInfo('Search cleared');
+    } else {
+        notificationService.showInfo('No active search to clear');
+    }
 }
 
 // =============================================

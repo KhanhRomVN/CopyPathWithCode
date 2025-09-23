@@ -467,4 +467,34 @@ export class TreeItemFactory {
     private createHashFromString(input: string): string {
         return crypto.createHash('md5').update(input).digest('hex').substring(0, 8);
     }
+
+    createSearchHeaderItem(searchTerm: string, resultCount: number): vscode.TreeItem {
+        const searchItem = new vscode.TreeItem(
+            `Search: "${searchTerm}" (${resultCount} results)`,
+            vscode.TreeItemCollapsibleState.None
+        );
+
+        searchItem.id = `search-header-${Date.now()}`;
+        searchItem.iconPath = new vscode.ThemeIcon('search');
+        searchItem.contextValue = 'searchHeader';
+        searchItem.tooltip = new vscode.MarkdownString(`**Search Results**\n\nSearch term: "${searchTerm}"\nFound: ${resultCount} files/directories`);
+
+        return searchItem;
+    }
+
+    // NEW: Create clear search action button
+    createClearSearchButton(): vscode.TreeItem {
+        const item = new vscode.TreeItem('Clear Search', vscode.TreeItemCollapsibleState.None);
+
+        item.id = `action-clear-search-${Date.now()}`;
+        item.iconPath = new vscode.ThemeIcon('clear-all');
+        item.contextValue = 'clearSearch';
+        item.command = {
+            command: 'copy-path-with-code.clearFileManagementSearch',
+            title: 'Clear Search',
+            arguments: []
+        };
+
+        return item;
+    }
 }

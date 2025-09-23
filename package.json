@@ -244,7 +244,19 @@
         "title": "Clear Search Filter",
         "icon": "$(clear-all)",
         "category": "Copy Path with Code"
-      }
+      },
+      {
+        "command": "copy-path-with-code.showFileManagementSearch",
+        "title": "Search Files in Workspace",
+        "icon": "$(search)",
+        "category": "Copy Path with Code"
+    },
+    {
+        "command": "copy-path-with-code.clearFileManagementSearch", 
+        "title": "Clear Search Filter",
+        "icon": "$(clear-all)",
+        "category": "Copy Path with Code"
+    }
     ],
     "keybindings": [
       {
@@ -422,7 +434,12 @@
           "command": "copy-path-with-code.newFolder",
           "when": "view == folderManager && viewItem == directory",
           "group": "6_new@2"
-        }
+        },
+        {
+          "command": "copy-path-with-code.showFileManagementSearch",
+          "when": "view == folderManager && viewItem == fileManagementHeader",
+          "group": "inline@1"
+      }
       ],
       "view/title": [
         {
