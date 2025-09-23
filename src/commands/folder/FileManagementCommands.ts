@@ -96,9 +96,6 @@ function handleToggleFileSelection(
     // Show feedback without triggering tree refresh
     const selectedCount = treeDataProvider.getSelectedFiles().length;
 
-    // Use status bar or minimal notification instead of full notification
-    console.log(`File selection toggled: ${filePath} (${selectedCount} files selected)`);
-
     // Optional: Show a brief status message that doesn't interfere
     if (selectedCount === 1) {
         // Only show message for first selection

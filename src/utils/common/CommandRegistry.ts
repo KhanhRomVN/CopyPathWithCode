@@ -28,8 +28,6 @@ export class CommandRegistry {
         const disposable = vscode.commands.registerCommand(command, handler);
         context.subscriptions.push(disposable);
         this.registeredCommands.add(command);
-
-        console.log(`✓ Registered command: ${command}`);
     }
 
     /**
@@ -48,8 +46,6 @@ export class CommandRegistry {
         const disposable = vscode.commands.registerTextEditorCommand(command, handler);
         context.subscriptions.push(disposable);
         this.registeredCommands.add(command);
-
-        console.log(`✓ Registered text editor command: ${command}`);
     }
 
     /**
