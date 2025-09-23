@@ -14,7 +14,6 @@ export class ExpansionStateManager {
             const itemId = this.getItemId(item);
             if (itemId) {
                 this.expandedItems.add(itemId);
-                Logger.debug(`Expanded: ${itemId}`);
             }
         });
 
@@ -23,25 +22,14 @@ export class ExpansionStateManager {
             const itemId = this.getItemId(item);
             if (itemId) {
                 this.expandedItems.delete(itemId);
-                Logger.debug(`Collapsed: ${itemId}`);
             }
         });
     }
 
     async restoreExpansionState(): Promise<void> {
         if (!this.treeView) return;
-
         // Wait a bit for tree to be rendered
         await new Promise(resolve => setTimeout(resolve, 50));
-
-        for (const itemId of this.expandedItems) {
-            try {
-                Logger.debug(`Attempting to restore expansion for: ${itemId}`);
-                // Implementation would need to traverse tree and expand items
-            } catch (error) {
-                Logger.warn(`Failed to restore expansion for ${itemId}`, error);
-            }
-        }
     }
 
     private getItemId(item: any): string | undefined {

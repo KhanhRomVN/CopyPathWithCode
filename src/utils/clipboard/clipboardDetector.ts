@@ -24,7 +24,6 @@ export class ClipboardDetector {
     static init(context: vscode.ExtensionContext): ClipboardDetector {
         if (!this.instance) {
             this.instance = new ClipboardDetector(context);
-            Logger.info('Clipboard detector initialized with clean architecture');
         }
         return this.instance;
     }
@@ -47,7 +46,6 @@ export class ClipboardDetector {
             this.checkClipboard();
         }, 1000); // Check every 1 second
 
-        Logger.debug('Clipboard detection started');
 
         // Initial check
         this.checkClipboard();
@@ -57,7 +55,6 @@ export class ClipboardDetector {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
-            Logger.debug('Clipboard detection stopped');
         }
     }
 
@@ -73,24 +70,20 @@ export class ClipboardDetector {
             // Only process if clipboard content has changed
             if (clipboardText !== this.lastClipboardContent) {
                 this.lastClipboardContent = clipboardText;
-                Logger.debug('Clipboard content changed, parsing...');
                 await this.parseClipboardContent(clipboardText);
             }
         } catch (error) {
-            Logger.debug('Failed to read clipboard content', error);
+            Logger.warn('Failed to read clipboard content', error);
         }
     }
 
     private async parseClipboardContent(text: string): Promise<void> {
         if (!text || text.trim().length === 0) {
-            Logger.debug('Empty clipboard content, clearing detected files');
             // Use ClipboardService instead of direct state manipulation
             await this.clipboardService.clearDetectedFiles();
             this.refreshClipboardView();
             return;
         }
-
-        Logger.debug('Parsing clipboard content:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
 
         try {
             // Use the DetectionService to parse clipboard content
@@ -99,19 +92,15 @@ export class ClipboardDetector {
             if (detectedFiles.length > 0) {
                 // Use ClipboardService to update detected files
                 await this.clipboardService.updateDetectedFiles(detectedFiles);
-                Logger.info(`Detected ${detectedFiles.length} file(s) in clipboard:`,
-                    detectedFiles.map(f => f.filePath));
             } else {
                 // If no valid files found but clipboard has content, clear the files list
                 const currentDetectedFiles = this.clipboardService.getDetectedFiles();
                 if (currentDetectedFiles.length > 0) {
-                    Logger.debug('No valid files detected, clearing clipboard files');
                     await this.clipboardService.clearDetectedFiles();
                 }
             }
         } catch (error) {
             Logger.error('Failed to parse clipboard content', error);
-            // Clear detected files on parse error
             await this.clipboardService.clearDetectedFiles();
         }
 
@@ -132,7 +121,6 @@ export class ClipboardDetector {
         } else {
             this.stopDetection();
         }
-        Logger.info(`Clipboard detection ${enabled ? 'enabled' : 'disabled'}`);
     }
 
     public async clearQueue(): Promise<void> {
@@ -142,7 +130,6 @@ export class ClipboardDetector {
         await this.clipboardService.clearDetectedFiles();
         this.lastClipboardContent = ''; // Reset last content to force re-parse
 
-        Logger.info(`Cleared ${count} file(s) from clipboard queue`);
         this.refreshClipboardView();
     }
 
@@ -152,7 +139,6 @@ export class ClipboardDetector {
 
     public dispose(): void {
         this.stopDetection();
-        Logger.info('Clipboard detector disposed');
     }
 
     // Static method to get the instance (for command access)

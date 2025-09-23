@@ -312,7 +312,6 @@ export class TreeItemFactory {
             try {
                 const uri = vscode.Uri.parse(node.uri);
                 item.resourceUri = uri;
-                Logger.debug(`Set resourceUri for directory: ${node.name} -> ${uri.toString()}`);
             } catch (error) {
                 Logger.warn(`Failed to parse directory URI: ${node.uri}`, error);
                 // Fallback to ThemeIcon
@@ -326,7 +325,6 @@ export class TreeItemFactory {
                     const fullPath = path.join(currentWorkspace.uri.fsPath, node.path);
                     const uri = vscode.Uri.file(fullPath);
                     item.resourceUri = uri;
-                    Logger.debug(`Generated resourceUri for directory: ${node.name} -> ${uri.toString()}`);
                 } catch (error) {
                     Logger.warn(`Failed to generate URI for directory: ${node.path}`, error);
                     // Fallback to ThemeIcon
@@ -337,7 +335,6 @@ export class TreeItemFactory {
                 item.iconPath = new vscode.ThemeIcon(
                     fileCount > 0 ? 'folder-opened' : 'folder'
                 );
-                Logger.debug(`Using ThemeIcon for directory: ${node.name}`);
             }
         }
 

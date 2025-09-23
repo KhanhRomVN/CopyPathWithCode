@@ -101,7 +101,6 @@ export class FileSystemFolderStorage implements IFolderRepository {
 
                 if (Array.isArray(storedData)) {
                     this.folders = storedData.map(data => Folder.fromData(data));
-                    Logger.debug(`Loaded ${this.folders.length} folders from file system`);
                 } else {
                     this.folders = [];
                 }
@@ -126,7 +125,6 @@ export class FileSystemFolderStorage implements IFolderRepository {
 
                 // Only reload if file was modified after our last save
                 if (fileTimestamp > this.lastSaveTimestamp) {
-                    Logger.debug('File modified by another instance, reloading...');
                     this.loadFromFileSystem();
                 }
             }
@@ -142,7 +140,6 @@ export class FileSystemFolderStorage implements IFolderRepository {
             const data = this.folders.map(f => f.toData());
             fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), 'utf8');
             this.lastSaveTimestamp = Date.now();
-            Logger.debug(`Saved ${this.folders.length} folders to file system`);
         } catch (error) {
             Logger.error('Failed to save folders to file system', error);
         } finally {
@@ -162,30 +159,25 @@ export class FileSystemFolderStorage implements IFolderRepository {
             this.fileWatcher.onDidChange(() => {
                 // Ignore changes made by this instance
                 if (this.isInternalUpdate) {
-                    Logger.debug('Ignoring self-triggered file change');
                     return;
                 }
 
-                Logger.debug('Folders file changed by another VS Code instance');
                 this.debouncedRefresh();
             });
 
             this.fileWatcher.onDidCreate(() => {
                 if (this.isInternalUpdate) return;
 
-                Logger.debug('Folders file created by another VS Code instance');
                 this.debouncedRefresh();
             });
 
             this.fileWatcher.onDidDelete(() => {
                 if (this.isInternalUpdate) return;
 
-                Logger.debug('Folders file deleted by another VS Code instance');
                 this.folders = [];
                 this.debouncedRefresh();
             });
 
-            Logger.debug('File watcher setup completed');
         } catch (error) {
             Logger.error('Failed to setup file watcher', error);
         }
@@ -207,7 +199,6 @@ export class FileSystemFolderStorage implements IFolderRepository {
                 // Refresh the folder view
                 vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
 
-                Logger.debug('Debounced refresh completed');
             } catch (error) {
                 Logger.error('Failed during debounced refresh', error);
             }
@@ -220,7 +211,6 @@ export class FileSystemFolderStorage implements IFolderRepository {
             const stored = this.context.globalState.get<any[]>('folders', []);
 
             if (stored.length > 0) {
-                Logger.info(`Migrating ${stored.length} folders from globalState to file system`);
                 this.folders = stored.map(data => Folder.fromData(data));
                 this.saveToFileSystem();
 
@@ -242,8 +232,6 @@ export class FileSystemFolderStorage implements IFolderRepository {
         if (this.fileWatcher) {
             this.fileWatcher.dispose();
         }
-
-        Logger.debug('FileSystemFolderStorage disposed');
     }
 }
 

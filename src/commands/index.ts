@@ -31,22 +31,17 @@ export function registerAllCommands(
     clipboardProvider: ClipboardProvider
 ): void {
     try {
-        Logger.info('Starting command registration');
-
         // Clear any existing registrations to start fresh
         CommandRegistry.clear();
 
         // Register core clipboard commands first (these are the main keyboard shortcuts)
         registerCoreCommands(context);
-        Logger.debug('Core clipboard commands registered');
 
         // Register context menu commands
         registerContextMenuCommands(context);
-        Logger.debug('Context menu commands registered');
 
         // Register critical commands that are referenced immediately
         registerCriticalCommands(context, treeDataProvider);
-        Logger.debug('Critical commands registered');
 
         // Register command modules
         registerFolderCommands(context);
@@ -60,9 +55,6 @@ export function registerAllCommands(
         registerClipboardCommands(context, clipboardProvider);
 
         const registeredCommands = CommandRegistry.getRegisteredCommands();
-        Logger.info(`Successfully registered ${registeredCommands.length} commands`);
-        Logger.debug('Registered commands:', registeredCommands);
-
     } catch (error) {
         Logger.error('Failed to register extension commands', error);
         throw new Error(`Failed to register extension commands: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -80,7 +72,6 @@ function registerCriticalCommands(
         'copy-path-with-code.refreshFolderView',
         () => {
             treeDataProvider.refresh();
-            Logger.debug('Folder view refreshed');
         }
     );
 
@@ -91,7 +82,6 @@ function registerCriticalCommands(
         () => handleToggleViewMode(treeDataProvider)
     );
 
-    Logger.debug('Critical commands registered');
 }
 
 // Main application commands with simplified implementations
@@ -202,7 +192,6 @@ function registerClipboardCommands(
             const detectedFiles = clipboardService.getDetectedFiles();
             vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasClipboardFiles',
                 detectedFiles.length > 0);
-            Logger.debug('Clipboard view refreshed');
         }
     );
 }

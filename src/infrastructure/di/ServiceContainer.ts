@@ -378,6 +378,5 @@ export class ServiceContainer {
         this.services.clear();
         this.isInitialized = false;
 
-        Logger.debug('ServiceContainer disposed with temp storage cleanup');
     }
 }

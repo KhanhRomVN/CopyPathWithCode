@@ -89,7 +89,6 @@ async function copyFileInline(item: any) {
             return;
         }
 
-        Logger.debug(`Inline copying file: ${uri.fsPath}`);
 
         // Check if it's actually a file
         if (await isDirectory(uri)) {
@@ -127,7 +126,6 @@ async function copyFileInline(item: any) {
                 content: formattedContent,
                 format: 'normal'
             };
-            Logger.debug(`Updated existing file in copied list: ${displayPath}`);
         } else {
             // Add new file
             state.copiedFiles.push({
@@ -136,7 +134,6 @@ async function copyFileInline(item: any) {
                 content: formattedContent,
                 format: 'normal'
             });
-            Logger.debug(`Added new file to copied list: ${displayPath}`);
         }
 
         // Update clipboard
@@ -152,7 +149,6 @@ async function copyFileInline(item: any) {
             `Added "${fileName}" (${count} file${count > 1 ? 's' : ''} total)`
         );
 
-        Logger.info(`Successfully added file to clipboard collection: ${displayPath} (total: ${count})`);
 
     } catch (error) {
         Logger.error('Failed to copy file inline', error);
@@ -180,7 +176,6 @@ async function openFile(item: any, viewColumn?: vscode.ViewColumn) {
             preview: false
         });
 
-        Logger.info(`Opened file: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to open file', error);
         vscode.window.showErrorMessage(`Failed to open file: ${error}`);
@@ -223,7 +218,6 @@ function copyPath(item: any, relative: boolean) {
 
         const pathType = relative ? 'Relative path' : 'Path';
         vscode.window.showInformationMessage(`${pathType} copied to clipboard`);
-        Logger.info(`${pathType} copied: ${pathToCopy}`);
     } catch (error) {
         Logger.error('Failed to copy path', error);
         vscode.window.showErrorMessage(`Failed to copy path: ${error}`);
@@ -239,7 +233,6 @@ function revealInFileExplorer(item: any) {
         }
 
         vscode.commands.executeCommand('revealFileInOS', uri);
-        Logger.info(`Revealed in file explorer: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to reveal in file explorer', error);
         vscode.window.showErrorMessage(`Failed to reveal in file explorer: ${error}`);
@@ -291,7 +284,6 @@ async function renameFile(item: any) {
         await vscode.workspace.fs.rename(uri, newUri);
 
         vscode.window.showInformationMessage(`Renamed to ${newName}`);
-        Logger.info(`Renamed ${currentName} to ${newName}`);
     } catch (error) {
         Logger.error('Failed to rename file', error);
         vscode.window.showErrorMessage(`Failed to rename: ${error}`);
@@ -319,7 +311,6 @@ async function deleteFile(item: any) {
         if (confirmation === 'Delete') {
             await vscode.workspace.fs.delete(uri, { recursive: isDir, useTrash: true });
             vscode.window.showInformationMessage(`Deleted ${itemType} "${fileName}"`);
-            Logger.info(`Deleted ${itemType}: ${uri.fsPath}`);
         }
     } catch (error) {
         Logger.error('Failed to delete file', error);
@@ -380,7 +371,6 @@ async function newFile(item: any) {
         await vscode.window.showTextDocument(document);
 
         vscode.window.showInformationMessage(`Created file "${fileName}"`);
-        Logger.info(`Created new file: ${newFileUri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to create new file', error);
         vscode.window.showErrorMessage(`Failed to create file: ${error}`);
@@ -436,7 +426,6 @@ async function newFolder(item: any) {
         await vscode.workspace.fs.createDirectory(newFolderUri);
 
         vscode.window.showInformationMessage(`Created folder "${folderName}"`);
-        Logger.info(`Created new folder: ${newFolderUri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to create new folder', error);
         vscode.window.showErrorMessage(`Failed to create folder: ${error}`);
@@ -461,7 +450,6 @@ function cutFile(item: any) {
 
     fileClipboardState = { operation: 'cut', uris: [uri] };
     vscode.window.showInformationMessage(`Cut ${path.basename(uri.fsPath)}`);
-    Logger.info(`Cut file: ${uri.fsPath}`);
 }
 
 function copyFile(item: any) {
@@ -473,7 +461,6 @@ function copyFile(item: any) {
 
     fileClipboardState = { operation: 'copy', uris: [uri] };
     vscode.window.showInformationMessage(`Copied ${path.basename(uri.fsPath)}`);
-    Logger.info(`Copied file: ${uri.fsPath}`);
 }
 
 async function pasteFile(item: any) {
@@ -522,7 +509,6 @@ async function pasteFile(item: any) {
                 }
 
                 successCount++;
-                Logger.info(`${fileClipboardState.operation === 'copy' ? 'Copied' : 'Moved'} ${sourceUri.fsPath} to ${targetPath.fsPath}`);
             } catch (error) {
                 Logger.error(`Failed to ${fileClipboardState.operation} file: ${sourceUri.fsPath}`, error);
                 failedCount++;

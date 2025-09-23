@@ -21,7 +21,6 @@ export function activate(context: vscode.ExtensionContext) {
     try {
         // Initialize logger
         Logger.initialize();
-        Logger.info('Extension activated');
 
         // Initialize service container with clean architecture
         const container = ServiceContainer.getInstance();
@@ -52,15 +51,12 @@ export function activate(context: vscode.ExtensionContext) {
         // SOLUTION: Also set tree view reference in FolderCommands for expand/collapse operations
         setFolderTreeView(treeView);
 
-        Logger.debug('Folder tree view created with expansion state management and command integration');
-
         // Create clipboard provider
         const clipboardProvider = new ClipboardProvider();
         const clipboardTreeView = vscode.window.createTreeView('clipboard-detection', {
             treeDataProvider: clipboardProvider,
             showCollapseAll: false
         });
-        Logger.debug('Clipboard tree view created');
 
         // Complete the dependency injection chain (pass both providers)
         container.registerUIServices(treeDataProvider, clipboardProvider);
@@ -77,7 +73,6 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Register ALL commands through the centralized system
         registerAllCommands(context, treeDataProvider, clipboardProvider);
-        Logger.info('All commands registered with clean architecture');
 
         // Add tree views to subscriptions for proper cleanup
         context.subscriptions.push(treeView);
@@ -95,11 +90,9 @@ export function activate(context: vscode.ExtensionContext) {
                     clearInterval(clipboardMonitoringInterval);
                     clipboardMonitoringInterval = undefined;
                 }
-                Logger.info('Extension deactivated');
             }
         });
 
-        Logger.info('Extension activation completed successfully');
     } catch (error) {
         Logger.error('Failed to activate extension', error);
         vscode.window.showErrorMessage(`Failed to activate Copy Path with Code: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -129,8 +122,6 @@ function startClipboardMonitoring(container: ServiceContainer) {
             Logger.error('Error during clipboard monitoring', error);
         }
     }, 2000);
-
-    Logger.debug('Clipboard monitoring started with enhanced integrity checking');
 }
 
 export function deactivate() {
@@ -166,7 +157,6 @@ export function deactivate() {
         // Dispose logger
         Logger.dispose();
 
-        Logger.info('Extension deactivated successfully');
     } catch (error) {
         console.error('Error during extension deactivation:', error);
     }

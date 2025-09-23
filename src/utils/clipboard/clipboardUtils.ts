@@ -33,7 +33,6 @@ export async function copyPathWithContent() {
 
         const document = editor.document;
         const filePath = document.uri.fsPath;
-        Logger.debug(`Copying content from: ${filePath}`);
 
         let displayPath = filePath;
         let basePath = filePath;
@@ -41,7 +40,6 @@ export async function copyPathWithContent() {
             const ws = vscode.workspace.workspaceFolders[0];
             displayPath = path.relative(ws.uri.fsPath, filePath);
             basePath = displayPath;
-            Logger.debug(`Using workspace relative path: ${displayPath}`);
         }
 
         let content: string;
@@ -51,10 +49,8 @@ export async function copyPathWithContent() {
             const startLine = sel.start.line + 1;
             const endLine = sel.end.line + 1;
             displayPath = `${displayPath}:${startLine}-${endLine}`;
-            Logger.debug(`Copying selection from line ${startLine} to ${endLine}`);
         } else {
             content = document.getText();
-            Logger.debug('Copying entire file content');
         }
 
         // Format content for normal copy
@@ -64,10 +60,6 @@ export async function copyPathWithContent() {
         const beforeCount = state.copiedFiles.length;
         state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
         const afterCount = state.copiedFiles.length;
-
-        if (beforeCount !== afterCount) {
-            Logger.debug(`Removed existing file entry for ${basePath}`);
-        }
 
         state.copiedFiles.push({
             displayPath,
@@ -79,7 +71,6 @@ export async function copyPathWithContent() {
         await updateClipboardWithSignature();
 
         const count = state.copiedFiles.length;
-        Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
         vscode.window.showInformationMessage(`Copied ${count} file${count > 1 ? 's' : ''} to clipboard`);
 
         updateStatusBar();
@@ -101,7 +92,6 @@ export async function copyPathWithContentAndError() {
         const document = editor.document;
         const selection = editor.selection;
         const filePath = document.uri.fsPath;
-        Logger.debug(`Copying content with error info from: ${filePath}`);
 
         let displayPath = filePath;
         let basePath = filePath;
@@ -109,7 +99,6 @@ export async function copyPathWithContentAndError() {
             const ws = vscode.workspace.workspaceFolders[0];
             displayPath = path.relative(ws.uri.fsPath, filePath);
             basePath = displayPath;
-            Logger.debug(`Using workspace relative path: ${displayPath}`);
         }
 
         let content: string;
@@ -118,18 +107,14 @@ export async function copyPathWithContentAndError() {
             const startLine = selection.start.line + 1;
             const endLine = selection.end.line + 1;
             displayPath = `${displayPath}:${startLine}-${endLine}`;
-            Logger.debug(`Copying selection from line ${startLine} to ${endLine}`);
         } else {
             content = document.getText();
-            Logger.debug('Copying entire file content');
         }
 
         // Get errors and warnings from Problems panel for this document
         const diagnostics = vscode.languages.getDiagnostics(document.uri);
         const errors: ErrorInfo[] = [];
         let errorCounter = 1;
-
-        Logger.debug(`Found ${diagnostics.length} diagnostics for document`);
 
         diagnostics.forEach(diagnostic => {
             if (diagnostic.severity <= 1) {
@@ -146,8 +131,6 @@ export async function copyPathWithContentAndError() {
             }
         });
 
-        Logger.debug(`Processed ${errors.length} errors/warnings for inclusion`);
-
         let formattedContent: string;
         if (errors.length > 0) {
             const errorString = errors.map(err =>
@@ -159,14 +142,7 @@ export async function copyPathWithContentAndError() {
             formattedContent = `${displayPath}:\n\`\`\`\n${content}\n\`\`\``;
         }
 
-        // Remove any existing file with same basePath (regardless of format)
-        const beforeCount = state.copiedFiles.length;
         state.copiedFiles = state.copiedFiles.filter(f => f.basePath !== basePath);
-        const afterCount = state.copiedFiles.length;
-
-        if (beforeCount !== afterCount) {
-            Logger.debug(`Removed existing file entry for ${basePath}`);
-        }
 
         state.copiedFiles.push({
             displayPath,
@@ -180,7 +156,6 @@ export async function copyPathWithContentAndError() {
         const count = state.copiedFiles.length;
         const errorCount = errors.length;
 
-        Logger.info(`Successfully copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to clipboard`);
         vscode.window.showInformationMessage(
             `Copied ${count} file${count > 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''} to clipboard`
         );
@@ -216,24 +191,18 @@ function updateStatusBar() {
 
 export async function clearClipboard() {
     try {
-        const beforeCount = state.copiedFiles.length;
-        Logger.debug(`Clearing clipboard with ${beforeCount} files`);
-
         state.copiedFiles.length = 0;
         // Also clear clipboard detection
         state.clipboardFiles = [];
 
         await vscode.env.clipboard.writeText('');
-        Logger.info('Successfully cleared clipboard');
         vscode.window.showInformationMessage('Clipboard cleared');
 
         if (state.statusBarItem) {
             state.statusBarItem.hide();
-            Logger.debug('Status bar hidden after clear');
         }
 
         // Refresh the clipboard view
-        Logger.debug('Refreshing clipboard view');
         vscode.commands.executeCommand('copy-path-with-code.refreshClipboardView');
     } catch (err: any) {
         const msg = err.message || 'Unknown error';
@@ -243,8 +212,6 @@ export async function clearClipboard() {
 }
 
 export async function copyFolderContents(folder: Folder) {
-    Logger.debug(`Starting to copy folder contents: ${folder.name} with ${folder.files.length} files`);
-
     const toCopy: CopiedFile[] = [];
     let successCount = 0;
     let failureCount = 0;
@@ -263,14 +230,11 @@ export async function copyFolderContents(folder: Folder) {
             });
 
             successCount++;
-            Logger.debug(`Successfully processed file: ${displayPath}`);
         } catch (e) {
             failureCount++;
             Logger.error(`Failed to read file: ${uriStr}`, e);
         }
     }
-
-    Logger.debug(`Processed ${successCount} files successfully, ${failureCount} failures`);
 
     if (!toCopy.length) {
         Logger.warn(`No files to copy in folder: ${folder.name}`);
@@ -283,7 +247,6 @@ export async function copyFolderContents(folder: Folder) {
         state.copiedFiles = toCopy;
         await updateClipboardWithSignature();
 
-        Logger.info(`Successfully copied ${toCopy.length} files from folder "${folder.name}"`);
         vscode.window.showInformationMessage(`Copied ${toCopy.length} files from "${folder.name}"`);
 
         updateStatusBar();
@@ -302,7 +265,6 @@ export async function checkClipboardIntegrity(): Promise<boolean> {
 
         if (!hasSignature && state.copiedFiles.length > 0) {
             // Content was modified externally, clear our tracking
-            Logger.info('Clipboard content modified externally, clearing file tracking');
             state.copiedFiles = [];
             updateStatusBar();
             return false;

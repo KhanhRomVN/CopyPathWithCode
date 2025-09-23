@@ -37,8 +37,6 @@ export function registerFolderMenuCommands(context: vscode.ExtensionContext): vo
         'copy-path-with-code.copyFolderContents',
         (folderItem) => handleCopyFolderContents(folderItem, notificationService, folderService)
     );
-
-    Logger.debug('Folder menu commands registered');
 }
 
 

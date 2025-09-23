@@ -38,18 +38,15 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
         // SOLUTION: Connect FileManagementStateManager to use null refresh
         this.fileManagementStateManager.setSelectionChangeEmitter(this._onDidChange);
 
-        Logger.debug('FolderProvider initialized with getParent support');
     }
 
     // CRITICAL FIX: Implement getParent method for reveal functionality
     getParent(element: vscode.TreeItem): vscode.TreeItem | undefined {
         if (!element.id) {
-            Logger.debug('getParent: element has no ID');
             return undefined;
         }
 
         const parent = this.treeItemParentMap.get(element.id);
-        Logger.debug(`getParent: element ${element.label} -> parent ${parent?.label || 'none'}`);
         return parent;
     }
 
@@ -57,7 +54,6 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     private trackParentChild(parent: vscode.TreeItem | undefined, child: vscode.TreeItem): void {
         if (child.id && parent?.id) {
             this.treeItemParentMap.set(child.id, parent);
-            Logger.debug(`Tracked parent relationship: ${child.label} -> ${parent.label}`);
         }
     }
 
@@ -95,7 +91,6 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     // Clear parent mapping
     private clearParentMap(): void {
         this.treeItemParentMap.clear();
-        Logger.debug('Parent mapping cleared');
     }
 
     // File Management Mode methods
@@ -119,17 +114,14 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
 
     // File Selection methods using null refresh
     toggleFileSelection(filePath: string): void {
-        Logger.debug(`FolderProvider.toggleFileSelection: ${filePath}`);
         this.fileManagementStateManager.toggleFileSelection(filePath);
     }
 
     async selectAllFiles(): Promise<void> {
-        Logger.debug('FolderProvider.selectAllFiles');
         await this.fileManagementStateManager.selectAllFiles();
     }
 
     deselectAllFiles(): void {
-        Logger.debug('FolderProvider.deselectAllFiles');
         this.fileManagementStateManager.deselectAllFiles();
     }
 
@@ -199,8 +191,6 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
 
     // Private methods - UPDATED to track parent relationships
     private async getWorkspaceChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-        Logger.debug('getWorkspaceChildren called', { element: element?.label });
-
         if (!element) {
             const items = this.isInFileManagementMode()
                 ? await this.fileManagementStateManager.getFileManagementRootItems(this.treeItemFactory)
@@ -209,14 +199,6 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
                     this.searchManager.getCurrentSearchTerm() || undefined
                 );
 
-            // Track root items (no parent)
-            items.forEach(item => {
-                if (item.id) {
-                    // Root items have no parent
-                    Logger.debug(`Root item: ${item.label} (${item.id})`);
-                }
-            });
-
             return items;
         }
 
@@ -224,19 +206,11 @@ export class FolderProvider implements vscode.TreeDataProvider<vscode.TreeItem> 
     }
 
     private async getGlobalChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-        Logger.debug('getGlobalChildren called', { element: element?.label });
 
         if (!element) {
             const items = this.isInFileManagementMode()
                 ? await this.fileManagementStateManager.getFileManagementRootItems(this.treeItemFactory)
                 : this.treeItemFactory.getGlobalFolderItems(this.searchManager.getCurrentSearchTerm() || undefined);
-
-            // Track root items
-            items.forEach(item => {
-                if (item.id) {
-                    Logger.debug(`Global root item: ${item.label} (${item.id})`);
-                }
-            });
 
             return items;
         }

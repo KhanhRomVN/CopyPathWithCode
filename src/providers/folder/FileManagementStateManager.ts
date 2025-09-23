@@ -62,10 +62,8 @@ export class FileManagementStateManager {
 
         if (wasSelected) {
             this.fileManagementState.selectedFiles.delete(filePath);
-            Logger.debug(`Deselected file: ${filePath}`);
         } else {
             this.fileManagementState.selectedFiles.add(filePath);
-            Logger.debug(`Selected file: ${filePath}`);
         }
 
         // CRITICAL FIX: Use null refresh to update TreeItems without collapsing
@@ -79,8 +77,6 @@ export class FileManagementStateManager {
         // Update VS Code context for conditional commands
         const selectedCount = this.getSelectedFiles().length;
         vscode.commands.executeCommand('setContext', 'copyPathWithCode.hasSelectedFiles', selectedCount > 0);
-
-        Logger.debug(`Selection updated. Total selected: ${selectedCount}`);
     }
 
     // Provide immediate visual feedback
@@ -103,7 +99,6 @@ export class FileManagementStateManager {
 
         try {
             const folder = this.folderTreeService.getFolderById(this.fileManagementState.folderId);
-            Logger.debug(`selectAllFiles: Processing folder "${folder.name}" with ${folder.fileCount} files`);
 
             let allFilePaths: string[] = [];
             const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
@@ -116,7 +111,6 @@ export class FileManagementStateManager {
             // FIXED: Use consistent logic with selectAllFilesInFolder
             if (this.fileManagementState.mode === 'add') {
                 // For ADD mode: Get all workspace files
-                Logger.debug('ADD mode: Getting all workspace files for selection');
                 const allUris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
 
                 allFilePaths = allUris.map(uri => {
@@ -124,11 +118,8 @@ export class FileManagementStateManager {
                     return relativePath.replace(/\\/g, '/');
                 });
 
-                Logger.debug(`Found ${allFilePaths.length} workspace files for ADD mode`);
-
             } else if (this.fileManagementState.mode === 'remove') {
                 // For REMOVE mode: Use file tree structure for consistency
-                Logger.debug('REMOVE mode: Getting files from folder tree');
                 const fileTree = this.folderTreeService.buildFileTreeForFolder(this.fileManagementState.folderId);
 
                 const extractFilePaths = (nodes: any[]): string[] => {
@@ -144,15 +135,12 @@ export class FileManagementStateManager {
                 };
 
                 allFilePaths = extractFilePaths(fileTree);
-                Logger.debug(`Found ${allFilePaths.length} files in folder for REMOVE mode`);
             }
 
             if (allFilePaths.length === 0) {
                 Logger.warn(`No files found for selectAllFiles in ${this.fileManagementState.mode} mode`);
                 return;
             }
-
-            const previousCount = this.fileManagementState.selectedFiles.size;
 
             // Add only new files to selection (skip already selected)
             let addedCount = 0;
@@ -163,7 +151,6 @@ export class FileManagementStateManager {
                 }
             });
 
-            Logger.debug(`Selected ${addedCount} additional files (total: ${this.fileManagementState.selectedFiles.size})`);
 
             // Use null refresh for bulk operations
             if (this.selectionChangeEmitter) {
@@ -184,7 +171,6 @@ export class FileManagementStateManager {
         // Clear all selected files
         this.fileManagementState.selectedFiles.clear();
 
-        Logger.debug(`Deselected ${previousCount} files`);
 
         // Use null refresh for bulk operations to update UI
         if (this.selectionChangeEmitter) {
@@ -202,11 +188,6 @@ export class FileManagementStateManager {
     selectAllFilesInFolder(folderId: string, directoryPath?: string): number {
         try {
             const folder = this.folderTreeService.getFolderById(folderId);
-            Logger.debug(`selectAllFilesInFolder: Processing folder "${folder.name}" with ${folder.fileCount} files`);
-
-            if (directoryPath) {
-                Logger.debug(`Filtering files by directory path: ${directoryPath}`);
-            }
 
             const currentWorkspace = this.folderTreeService.getCurrentWorkspaceFolder();
 
@@ -219,31 +200,25 @@ export class FileManagementStateManager {
             let allFilePaths: string[] = [];
 
             if (this.fileManagementState.mode === 'add') {
-                Logger.debug('ADD MODE: Getting files from workspace scan');
 
                 // Strategy: Get ALL files from workspace that match the directory filter
                 try {
                     // Use VS Code's findFiles to get all files in the specified directory
                     const targetGlob = directoryPath ? `${directoryPath}/**/*` : '**/*';
-                    Logger.debug(`Searching workspace with glob: ${targetGlob}`);
 
                     // Since findFiles is async, we need to make this method async or use a different approach
                     // For now, let's use the file tree which represents the workspace structure
                     const allWorkspaceFiles = this.getAllWorkspaceFilesFromTree();
-                    Logger.debug(`Found ${allWorkspaceFiles.length} files in workspace tree`);
 
                     // Filter by directory if specified
                     if (directoryPath) {
                         allFilePaths = allWorkspaceFiles.filter(filePath => {
                             const isInDirectory = filePath.startsWith(directoryPath + '/') || filePath === directoryPath;
-                            Logger.debug(`Workspace file "${filePath}": isInDirectory=${isInDirectory}`);
                             return isInDirectory;
                         });
                     } else {
                         allFilePaths = allWorkspaceFiles;
                     }
-
-                    Logger.debug(`After directory filtering: ${allFilePaths.length} files to select`);
 
                 } catch (error) {
                     Logger.error('Failed to get workspace files', error);
@@ -251,11 +226,7 @@ export class FileManagementStateManager {
                 }
 
             } else {
-                // REMOVE MODE: Only use files already in the folder
-                Logger.debug('REMOVE MODE: Getting files from folder storage only');
-
                 const folderFiles = folder.files;
-                Logger.debug(`Found ${folderFiles.length} files in folder storage`);
 
                 folderFiles.forEach((fileUri, index) => {
                     try {
@@ -274,19 +245,8 @@ export class FileManagementStateManager {
 
             if (allFilePaths.length === 0) {
                 Logger.warn(`No files found for selection in folder ${folderId}${directoryPath ? ` and directory ${directoryPath}` : ''}`);
-
-                if (directoryPath && this.fileManagementState.mode === 'add') {
-                    Logger.info('HINT: In ADD mode, make sure the directory contains actual files in the workspace');
-                }
-
                 return 0;
             }
-
-            // Log final files to be selected
-            Logger.debug('Final files to be selected:');
-            allFilePaths.forEach((filePath, index) => {
-                Logger.debug(`  ${index + 1}. ${filePath}`);
-            });
 
             const previousCount = this.fileManagementState.selectedFiles.size;
 
@@ -303,14 +263,9 @@ export class FileManagementStateManager {
                     if (!normalizedSelectedFiles.has(normalizedPath)) {
                         this.fileManagementState.selectedFiles.add(filePath);
                         addedCount++;
-                        Logger.debug(`✓ Selected file: ${filePath}`);
-                    } else {
-                        Logger.debug(`- Already selected: ${filePath}`);
                     }
                 }
             });
-
-            Logger.debug(`Selected ${addedCount} additional files (total: ${this.fileManagementState.selectedFiles.size})`);
 
             // Use null refresh for bulk operations
             if (this.selectionChangeEmitter) {
@@ -359,7 +314,6 @@ export class FileManagementStateManager {
                 allWorkspaceFiles.push(...extractPaths(fileTree));
             }
 
-            Logger.debug(`getAllWorkspaceFilesFromTree: Found ${allWorkspaceFiles.length} files`);
             return allWorkspaceFiles;
 
         } catch (error) {
@@ -392,7 +346,6 @@ export class FileManagementStateManager {
                 }
             });
 
-            Logger.debug(`Unselected ${removedCount} files in folder ${folder.name}`);
 
             // Use null refresh for folder operations
             if (this.selectionChangeEmitter) {
@@ -498,13 +451,8 @@ export class FileManagementStateManager {
                         }
                     });
 
-                    Logger.debug(`ADD mode: Pre-selected ${folder.files.length} existing files (will remain in folder unless unchecked)`);
                 } else if (this.fileManagementState.mode === 'remove') {
-                    // For REMOVE mode: start with NO files selected
-                    // User must explicitly select files they want to remove
                     this.fileManagementState.selectedFiles.clear();
-
-                    Logger.debug(`REMOVE mode: Started with no files selected (user must select files to remove)`);
                 }
             }
         } catch (error) {
@@ -583,7 +531,6 @@ export class FileManagementStateManager {
                     }
 
                     node = FileNode.createDirectory(part, currentPath, directoryUri);
-                    Logger.debug(`Created directory node: ${part} with URI: ${directoryUri}`);
                 }
 
                 currentLevel.set(part, node);
@@ -598,35 +545,20 @@ export class FileManagementStateManager {
 
     private getRelativePathFromUri(uri: string): string {
         try {
-            Logger.debug(`=== getRelativePathFromUri DEBUG ===`);
-            Logger.debug(`Input URI: ${uri}`);
-
             const vscodeUri = vscode.Uri.parse(uri);
-            Logger.debug(`Parsed URI: scheme="${vscodeUri.scheme}", fsPath="${vscodeUri.fsPath}"`);
 
             if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                const workspaceFolder = vscode.workspace.workspaceFolders[0];
-                Logger.debug(`Workspace folder: ${workspaceFolder.uri.fsPath}`);
-
                 const relativePath = vscode.workspace.asRelativePath(vscodeUri);
-                Logger.debug(`VS Code relative path: "${relativePath}"`);
-
                 const normalizedPath = relativePath.replace(/\\/g, '/');
-                Logger.debug(`Normalized relative path: "${normalizedPath}"`);
-                Logger.debug(`=== END getRelativePathFromUri DEBUG ===`);
-
                 return normalizedPath;
             }
 
             const fallback = path.basename(vscodeUri.fsPath);
-            Logger.debug(`No workspace, using basename: "${fallback}"`);
-            Logger.debug(`=== END getRelativePathFromUri DEBUG ===`);
 
             return fallback;
         } catch (error) {
             Logger.warn(`Failed to get relative path from URI: ${uri}`, error);
             const fallback = path.basename(uri.replace(/^file:\/\//, ''));
-            Logger.debug(`Error fallback: "${fallback}"`);
             return fallback;
         }
     }

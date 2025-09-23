@@ -146,8 +146,6 @@ export function registerContextMenuCommands(context: vscode.ExtensionContext): v
     commands.forEach(({ command, handler }) => {
         CommandRegistry.registerCommand(context, command, handler);
     });
-
-    Logger.info('Enhanced context menu commands registered');
 }
 
 // =============================================
@@ -170,7 +168,6 @@ async function handleOpenFile(item: any, notificationService: INotificationServi
         }
 
         await vscode.window.showTextDocument(uri, { preview: false });
-        Logger.debug(`Opened file: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to open file', error);
         notificationService.showError(`Failed to open file: ${getErrorMessage(error)}`);
@@ -196,7 +193,6 @@ async function handleOpenToSide(item: any, notificationService: INotificationSer
             preview: false,
             viewColumn: vscode.ViewColumn.Beside
         });
-        Logger.debug(`Opened file to side: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to open file to side', error);
         notificationService.showError(`Failed to open file to side: ${getErrorMessage(error)}`);
@@ -212,7 +208,6 @@ async function handleOpenWith(item: any, notificationService: INotificationServi
         }
 
         await vscode.commands.executeCommand('vscode.openWith', uri);
-        Logger.debug(`Opened file with custom editor: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to open with custom editor', error);
         notificationService.showError(`Failed to open with custom editor: ${getErrorMessage(error)}`);
@@ -247,7 +242,6 @@ async function handleOpenContainingFolder(item: any, notificationService: INotif
         }
 
         await vscode.commands.executeCommand('revealFileInOS', folderUri);
-        Logger.debug(`Opened containing folder: ${folderUri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to open containing folder', error);
         notificationService.showError(`Failed to open containing folder: ${getErrorMessage(error)}`);
@@ -263,7 +257,6 @@ async function handleRevealInFileExplorer(item: any, notificationService: INotif
         }
 
         await vscode.commands.executeCommand('revealFileInOS', uri);
-        Logger.debug(`Revealed in file explorer: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to reveal in file explorer', error);
         notificationService.showError(`Failed to reveal in file explorer: ${getErrorMessage(error)}`);
@@ -301,7 +294,6 @@ async function handleOpenInIntegratedTerminal(item: any, notificationService: IN
         });
 
         terminal.show();
-        Logger.debug(`Opened terminal in: ${terminalUri.fsPath}`);
         notificationService.showInfo(`Opened terminal in ${path.basename(terminalUri.fsPath)}`);
     } catch (error) {
         Logger.error('Failed to open integrated terminal', error);
@@ -326,7 +318,6 @@ async function handleCopyPath(item: any, notificationService: INotificationServi
 
         const fileName = path.basename(fullPath);
         notificationService.showInfo(`Copied path: ${fileName}`);
-        Logger.debug(`Copied path: ${fullPath}`);
     } catch (error) {
         Logger.error('Failed to copy path', error);
         notificationService.showError(`Failed to copy path: ${getErrorMessage(error)}`);
@@ -356,7 +347,6 @@ async function handleCopyRelativePath(
 
         await vscode.env.clipboard.writeText(relativePath);
         notificationService.showInfo(`Copied relative path: ${relativePath}`);
-        Logger.debug(`Copied relative path: ${relativePath}`);
     } catch (error) {
         Logger.error('Failed to copy relative path', error);
         notificationService.showError(`Failed to copy relative path: ${getErrorMessage(error)}`);
@@ -417,7 +407,6 @@ async function handleRenameFile(item: any, notificationService: INotificationSer
 
         await vscode.workspace.fs.rename(uri, newUri);
         notificationService.showSuccess(`Renamed "${currentName}" to "${newName}"`);
-        Logger.debug(`Renamed ${uri.fsPath} to ${newUri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to rename', error);
         notificationService.showError(`Failed to rename: ${getErrorMessage(error)}`);
@@ -455,7 +444,6 @@ async function handleDeleteFile(item: any, notificationService: INotificationSer
                 useTrash: true
             });
             notificationService.showSuccess(`Deleted ${itemType} "${fileName}"`);
-            Logger.debug(`Deleted ${uri.fsPath}`);
         }
     } catch (error) {
         Logger.error('Failed to delete', error);
@@ -483,7 +471,6 @@ function handleCutFile(
 
         const fileName = path.basename(uri.fsPath);
         notificationService.showInfo(`Cut: ${fileName}`);
-        Logger.debug(`Cut file: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to cut', error);
         notificationService.showError(`Failed to cut: ${getErrorMessage(error)}`);
@@ -506,7 +493,6 @@ function handleCopyFile(
 
         const fileName = path.basename(uri.fsPath);
         notificationService.showInfo(`Copied: ${fileName}`);
-        Logger.debug(`Copied file: ${uri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to copy', error);
         notificationService.showError(`Failed to copy: ${getErrorMessage(error)}`);
@@ -563,7 +549,6 @@ async function handlePasteFile(
                 }
 
                 successCount++;
-                Logger.debug(`${clipboardItem.operation === 'copy' ? 'Copied' : 'Moved'} ${clipboardItem.uri.fsPath} to ${uniqueTargetUri.fsPath}`);
             } catch (error) {
                 errorCount++;
                 Logger.error(`Failed to paste ${clipboardItem.uri.fsPath}`, error);
@@ -653,7 +638,6 @@ async function handleNewFile(item: any, notificationService: INotificationServic
         await vscode.window.showTextDocument(newFileUri);
 
         notificationService.showSuccess(`Created file "${fileName}"`);
-        Logger.debug(`Created new file: ${newFileUri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to create new file', error);
         notificationService.showError(`Failed to create file: ${getErrorMessage(error)}`);
@@ -716,7 +700,6 @@ async function handleNewFolder(item: any, notificationService: INotificationServ
         await vscode.workspace.fs.createDirectory(newFolderUri);
 
         notificationService.showSuccess(`Created folder "${folderName}"`);
-        Logger.debug(`Created new folder: ${newFolderUri.fsPath}`);
     } catch (error) {
         Logger.error('Failed to create new folder', error);
         notificationService.showError(`Failed to create folder: ${getErrorMessage(error)}`);

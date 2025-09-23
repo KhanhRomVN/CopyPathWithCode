@@ -47,12 +47,10 @@ export class FileWatcher {
             })
         );
 
-        Logger.info('Enhanced file watcher initialized');
     }
 
     private handleFileDeleted(deletedUri: vscode.Uri) {
         const deletedUriString = deletedUri.toString();
-        Logger.info(`File deleted: ${deletedUriString}`);
 
         try {
             // Use clean architecture to remove deleted files
@@ -73,7 +71,6 @@ export class FileWatcher {
 
     // NEW: Handle file creation - could be useful for future features
     private handleFileCreated(createdUri: vscode.Uri) {
-        Logger.debug(`File created: ${createdUri.toString()}`);
 
         // For now, just log. In future could implement:
         // - Auto-add to specific folders based on patterns
@@ -91,7 +88,6 @@ export class FileWatcher {
 
         this.debounceTimer = setTimeout(() => {
             vscode.commands.executeCommand('copy-path-with-code.refreshFolderView');
-            Logger.debug('Debounced folder view refresh completed');
         }, 500); // 500ms debounce
     }
 
@@ -121,7 +117,5 @@ export class FileWatcher {
         if (this.fileWatcher) {
             this.fileWatcher.dispose();
         }
-
-        Logger.info('Enhanced file watcher disposed');
     }
 }

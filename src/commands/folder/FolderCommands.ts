@@ -22,7 +22,6 @@ let folderTreeView: vscode.TreeView<vscode.TreeItem> | undefined;
 // Function to set tree view reference from extension.ts
 export function setFolderTreeView(treeView: vscode.TreeView<vscode.TreeItem>): void {
     folderTreeView = treeView;
-    Logger.info('FolderTreeView reference set for expand/collapse operations');
 }
 
 export function registerFolderCommands(context: vscode.ExtensionContext): void {
@@ -71,8 +70,6 @@ export function registerFolderCommands(context: vscode.ExtensionContext): void {
     commands.forEach(({ command, handler }) => {
         CommandRegistry.registerCommand(context, command, handler);
     });
-
-    Logger.info('Folder commands registered with working expand/collapse functionality');
 }
 
 // =============================================
@@ -243,17 +240,12 @@ async function handleExpandFolder(
             return;
         }
 
-        Logger.info(`Starting custom expand all for folder: ${folderId}`);
-
         // Get folder data
         const container = ServiceContainer.getInstance();
         const folderService = container.resolve<FolderService>('FolderService');
         const folderTreeService = container.resolve<IFolderTreeService>('IFolderTreeService');
 
         const folder = folderService.getFolderById(folderId);
-        const fileTree = folderTreeService.buildFileTreeForFolder(folderId);
-
-        Logger.info(`Folder "${folder.name}" has ${fileTree.length} root items, ${folder.fileCount} total files`);
 
         if (!folderTreeView) {
             Logger.error('TreeView is not available');
@@ -261,18 +253,13 @@ async function handleExpandFolder(
             return;
         }
 
-        Logger.info('TreeView available: true');
-
         // STRATEGY 1: Custom recursive expansion using reveal with expand levels
-        Logger.info('Strategy 1: Custom recursive expansion using tree navigation');
-
         try {
             // Focus the folder manager view first
             await vscode.commands.executeCommand('workbench.view.extension.copy-path-with-code-folders');
             await sleep(200);
 
             // Reveal the main folder with deep expansion
-            Logger.debug('Revealing folder with deep expansion...');
             await folderTreeView.reveal(folderItem, {
                 select: true,
                 focus: true,
@@ -282,8 +269,6 @@ async function handleExpandFolder(
 
             // Now recursively expand all subdirectories
             await expandAllDirectoriesRecursively(folderItem, treeDataProvider, folderTreeView);
-
-            Logger.info(`Strategy 1 SUCCESS: Custom recursive expansion completed in ${Date.now() - startTime}ms`);
             notificationService.showInfo(`Expanded all directories in "${folder.name}"`);
             return;
 
@@ -292,8 +277,6 @@ async function handleExpandFolder(
         }
 
         // STRATEGY 2: Multiple list.expand commands
-        Logger.info('Strategy 2: Multiple list.expand commands');
-
         try {
             // Focus and select the folder
             await folderTreeView.reveal(folderItem, {
@@ -306,16 +289,13 @@ async function handleExpandFolder(
             // Execute multiple expand commands to expand more levels
             for (let i = 0; i < 5; i++) {
                 try {
-                    Logger.debug(`Expand iteration ${i + 1}`);
                     await vscode.commands.executeCommand('list.expand');
                     await sleep(100);
                 } catch (expandError) {
-                    Logger.debug(`Expand iteration ${i + 1} completed (no more items to expand)`);
                     break;
                 }
             }
 
-            Logger.info(`Strategy 2 SUCCESS: Multiple expand commands completed in ${Date.now() - startTime}ms`);
             notificationService.showInfo(`Expanded multiple levels in "${folder.name}"`);
             return;
 
@@ -324,8 +304,6 @@ async function handleExpandFolder(
         }
 
         // STRATEGY 3: Force expansion through cache manipulation
-        Logger.info('Strategy 3: Force expansion through tree refresh');
-
         try {
             // Clear cache to force fresh rendering
             treeDataProvider.clearCache();
@@ -341,7 +319,6 @@ async function handleExpandFolder(
             treeDataProvider.refresh();
             await sleep(200);
 
-            Logger.info(`Strategy 3 PARTIAL: Tree refresh completed in ${Date.now() - startTime}ms`);
             notificationService.showInfo(`Refreshed and expanded "${folder.name}"`);
             return;
 
@@ -374,16 +351,12 @@ async function expandAllDirectoriesRecursively(
     maxDepth: number = 10
 ): Promise<void> {
     if (currentDepth >= maxDepth) {
-        Logger.debug(`Reached maximum expansion depth: ${maxDepth}`);
         return;
     }
 
     try {
-        Logger.debug(`Expanding at depth ${currentDepth}: ${parentItem.label}`);
-
         // Get children of the current item
         const children = await treeDataProvider.getChildren(parentItem);
-        Logger.debug(`Found ${children.length} children at depth ${currentDepth}`);
 
         // Process each child
         for (const child of children) {
@@ -392,7 +365,6 @@ async function expandAllDirectoriesRecursively(
             // If this child is a directory, expand it recursively
             if (childAny.treeNode && childAny.treeNode.isDirectory) {
                 try {
-                    Logger.debug(`Expanding directory: ${childAny.treeNode.name} at depth ${currentDepth}`);
 
                     // Reveal and expand this directory
                     await treeView.reveal(child, {
@@ -411,7 +383,6 @@ async function expandAllDirectoriesRecursively(
                         maxDepth
                     );
 
-                    Logger.debug(`Completed expansion of directory: ${childAny.treeNode.name}`);
 
                 } catch (expandError) {
                     Logger.warn(`Failed to expand directory: ${childAny.treeNode?.name}`, expandError);
@@ -420,7 +391,6 @@ async function expandAllDirectoriesRecursively(
             }
         }
 
-        Logger.debug(`Completed recursive expansion at depth ${currentDepth}`);
 
     } catch (error) {
         Logger.warn(`Error during recursive directory expansion at depth ${currentDepth}`, error);
@@ -442,7 +412,6 @@ async function handleCollapseFolder(
             return;
         }
 
-        Logger.info(`Starting collapse for folder: ${folderId}`);
 
         if (!folderTreeView) {
             Logger.error('TreeView not available for collapse operation');
@@ -451,7 +420,6 @@ async function handleCollapseFolder(
         }
 
         // Focus view and collapse
-        Logger.debug('Focusing view and collapsing...');
         await vscode.commands.executeCommand('workbench.view.extension.copy-path-with-code-folders');
         await sleep(150);
 
@@ -468,7 +436,6 @@ async function handleCollapseFolder(
         treeDataProvider.refresh();
         await sleep(50);
 
-        Logger.info(`Collapse completed in ${Date.now() - startTime}ms`);
         notificationService.showInfo('Folder collapsed');
 
     } catch (error) {
@@ -492,7 +459,6 @@ async function handleCopyFolderContent(
         // Delegate to existing copyFolderContents command
         await vscode.commands.executeCommand('copy-path-with-code.copyFolderContents', folderItem);
 
-        Logger.debug(`Quick copied folder content: ${folderId}`);
 
     } catch (error) {
         Logger.error('Failed to copy folder content', error);
@@ -545,8 +511,6 @@ async function handleRenameFolderQuick(
             folderId,
             newName: newName.trim()
         });
-
-        Logger.debug(`Quick renamed folder ${folder.name} to ${newName}`);
 
     } catch (error) {
         Logger.error('Failed to quick rename folder', error);
