@@ -51,6 +51,16 @@ export class TreeItemFactory {
         (treeItem as any).folderId = folder.id;
         treeItem.contextValue = FOLDER_CONSTANTS.CONTEXT_VALUES.FOLDER;
 
+        // THÊM: Set resourceUri để VS Code có thể rename
+        if (folder.workspaceFolder) {
+            try {
+                const folderUri = vscode.Uri.file(path.join(folder.workspaceFolder, folder.name));
+                treeItem.resourceUri = folderUri;
+            } catch (error) {
+                Logger.warn(`Failed to create resourceUri for folder: ${folder.name}`, error);
+            }
+        }
+
         // Set icon based on workspace context
         treeItem.iconPath = new vscode.ThemeIcon(
             isCurrentWorkspace

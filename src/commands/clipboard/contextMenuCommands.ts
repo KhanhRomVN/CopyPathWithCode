@@ -26,8 +26,14 @@ import * as path from 'path';
 import { state } from '../../models/models';
 import { Logger } from '../../utils/common/logger';
 import { TRACKING_SIGNATURE } from '../../utils/clipboard/clipboardUtils';
+import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
+import { INotificationService } from '../../application/folder/service/FolderApplicationService';
 
 export function registerContextMenuCommands(context: vscode.ExtensionContext) {
+    // Get notification service from container
+    const container = ServiceContainer.getInstance();
+    const notificationService = container.resolve<INotificationService>('INotificationService');
+
     const commands = [
         // File operations (context menu)
         vscode.commands.registerCommand('copy-path-with-code.openFile', async (item) => {
@@ -70,12 +76,18 @@ export function registerContextMenuCommands(context: vscode.ExtensionContext) {
             await newFolder(item);
         }),
 
+        // FIXED: Handle rename command properly
+        vscode.commands.registerCommand('copy-path-with-code.handleRename', async (item: any) => {
+            await handleRename(item, notificationService);
+        }),
+
         // Inline copy command (hover icon)
         vscode.commands.registerCommand('copy-path-with-code.copyFileInline', async (item) => {
             await copyFileInline(item);
         })
     ];
 
+    // FIXED: All items are now Disposable
     commands.forEach(cmd => context.subscriptions.push(cmd));
 }
 
@@ -88,7 +100,6 @@ async function copyFileInline(item: any) {
             vscode.window.showErrorMessage('Could not determine file path');
             return;
         }
-
 
         // Check if it's actually a file
         if (await isDirectory(uri)) {
@@ -148,7 +159,6 @@ async function copyFileInline(item: any) {
         vscode.window.showInformationMessage(
             `Added "${fileName}" (${count} file${count > 1 ? 's' : ''} total)`
         );
-
 
     } catch (error) {
         Logger.error('Failed to copy file inline', error);
@@ -532,6 +542,26 @@ async function pasteFile(item: any) {
     }
 }
 
+// ==================== RENAME HANDLER ====================
+
+async function handleRename(item: any, notificationService: INotificationService): Promise<void> {
+    try {
+        const uri = getUriFromItem(item);
+        if (!uri) {
+            notificationService.showError('Invalid selection for rename');
+            return;
+        }
+
+        // Sử dụng VS Code's built-in rename command
+        await vscode.commands.executeCommand('renameFile', uri);
+
+    } catch (error) {
+        Logger.error('Failed to rename', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        notificationService.showError(`Failed to rename: ${errorMessage}`);
+    }
+}
+
 // ==================== HELPER FUNCTIONS ====================
 
 async function updateClipboardWithSignature() {
@@ -564,7 +594,7 @@ function getUriFromItem(item: any): vscode.Uri | null {
 
         // If item has treeNode with uri
         if (item && item.treeNode && item.treeNode.uri) {
-            return item.treeNode.uri;
+            return vscode.Uri.parse(item.treeNode.uri);
         }
 
         // If item has uri property directly

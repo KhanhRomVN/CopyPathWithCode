@@ -1,9 +1,10 @@
 /**
  * FILE: src/utils/folder/fileWatcher.ts - ENHANCED VERSION
- * Enhanced FileWatcher with better cross-instance synchronization
+ * Enhanced FileWatcher with better cross-instance synchronization and rename tracking
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ServiceContainer } from '../../infrastructure/di/ServiceContainer';
 import { FolderService } from '../../domain/folder/services/FolderService';
 import { Logger } from '../common/logger';
@@ -28,6 +29,7 @@ export class FileWatcher {
         this.folderService = container.resolve<FolderService>('FolderService');
 
         this.setupFileWatcher();
+        this.setupWorkspaceWatchers();
     }
 
     private setupFileWatcher() {
@@ -46,7 +48,127 @@ export class FileWatcher {
                 this.handleFileCreated(uri);
             })
         );
+    }
 
+    // NEW: Setup workspace-level watchers for rename events
+    private setupWorkspaceWatchers() {
+        // Listen for file/folder renames
+        this.disposables.push(
+            vscode.workspace.onDidRenameFiles((event) => {
+                this.handleFilesRenamed(event);
+            })
+        );
+    }
+
+    // NEW: Handle folder/file rename events
+    private async handleFilesRenamed(event: vscode.FileRenameEvent) {
+        try {
+            for (const rename of event.files) {
+                const oldUri = rename.oldUri;
+                const newUri = rename.newUri;
+
+                Logger.info(`File/Folder renamed: ${oldUri.fsPath} -> ${newUri.fsPath}`);
+
+                // Check if this is a folder rename by trying to get stats
+                try {
+                    const stat = await vscode.workspace.fs.stat(newUri);
+
+                    if (stat.type === vscode.FileType.Directory) {
+                        // This is a folder rename
+                        await this.handleFolderRenamed(oldUri, newUri);
+                    } else {
+                        // This is a file rename
+                        await this.handleFileRenamed(oldUri, newUri);
+                    }
+                } catch (error) {
+                    Logger.warn(`Could not determine type for renamed item: ${newUri.fsPath}`, error);
+                }
+            }
+        } catch (error) {
+            Logger.error('Failed to handle rename event', error);
+        }
+    }
+
+    // NEW: Handle folder rename specifically
+    private async handleFolderRenamed(oldUri: vscode.Uri, newUri: vscode.Uri) {
+        try {
+            const oldFolderName = path.basename(oldUri.fsPath);
+            const newFolderName = path.basename(newUri.fsPath);
+
+            if (oldFolderName === newFolderName) {
+                return; // No actual name change
+            }
+
+            Logger.info(`Folder renamed: "${oldFolderName}" -> "${newFolderName}"`);
+
+            // Get current workspace
+            const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!currentWorkspace) {
+                Logger.warn('No workspace found for folder rename');
+                return;
+            }
+
+            // Find folders that match the old folder name in current workspace
+            const allFolders = this.folderService.getAllFolders();
+            let updatedCount = 0;
+
+            for (const folder of allFolders) {
+                // Check if this folder corresponds to the renamed folder
+                if (folder.name === oldFolderName &&
+                    folder.workspaceFolder === currentWorkspace) {
+
+                    try {
+                        // Update folder name using the service
+                        this.folderService.renameFolder(folder.id, newFolderName);
+                        updatedCount++;
+                        Logger.info(`Updated folder "${oldFolderName}" to "${newFolderName}" in extension`);
+                    } catch (error) {
+                        Logger.error(`Failed to rename folder ${folder.id} in extension`, error);
+                    }
+                }
+            }
+
+            if (updatedCount > 0) {
+                // Refresh tree view to show updated names
+                this.debouncedRefresh();
+
+                vscode.window.showInformationMessage(
+                    `Updated ${updatedCount} folder(s) name from "${oldFolderName}" to "${newFolderName}"`
+                );
+            }
+
+        } catch (error) {
+            Logger.error('Failed to handle folder rename', error);
+        }
+    }
+
+    // NEW: Handle file rename specifically  
+    private async handleFileRenamed(oldUri: vscode.Uri, newUri: vscode.Uri) {
+        try {
+            const oldUriString = oldUri.toString();
+            const newUriString = newUri.toString();
+
+            // Update file URIs in all folders
+            const allFolders = this.folderService.getAllFolders();
+            let updatedFolders = 0;
+
+            for (const folder of allFolders) {
+                if (folder.files.includes(oldUriString)) {
+                    // Remove old URI and add new URI
+                    this.folderService.removeFileFromFolder(folder.id, oldUriString);
+                    this.folderService.addFileToFolder(folder.id, newUriString);
+                    updatedFolders++;
+                }
+            }
+
+            if (updatedFolders > 0) {
+                this.debouncedRefresh();
+                Logger.info(`Updated file URI in ${updatedFolders} folder(s) after rename`);
+            }
+
+        } catch (error) {
+            Logger.error('Failed to handle file rename', error);
+        }
     }
 
     private handleFileDeleted(deletedUri: vscode.Uri) {
@@ -71,7 +193,6 @@ export class FileWatcher {
 
     // NEW: Handle file creation - could be useful for future features
     private handleFileCreated(createdUri: vscode.Uri) {
-
         // For now, just log. In future could implement:
         // - Auto-add to specific folders based on patterns
         // - Notify user about new files in monitored directories
